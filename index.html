@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#120606">
+<title>Beast and Crimson: Tribes</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="vine-gear" viewBox="0 0 32 32">
+    <g fill="currentColor">
+      <path d="M16 1c2.4 2.2 2.4 4.4 0 6.4-2.4-2-2.4-4.2 0-6.4z"/>
+      <path d="M16 1c2.4 2.2 2.4 4.4 0 6.4-2.4-2-2.4-4.2 0-6.4z" transform="rotate(45 16 16)"/>
+      <path d="M16 1c2.4 2.2 2.4 4.4 0 6.4-2.4-2-2.4-4.2 0-6.4z" transform="rotate(90 16 16)"/>
+      <path d="M16 1c2.4 2.2 2.4 4.4 0 6.4-2.4-2-2.4-4.2 0-6.4z" transform="rotate(135 16 16)"/>
+      <path d="M16 1c2.4 2.2 2.4 4.4 0 6.4-2.4-2-2.4-4.2 0-6.4z" transform="rotate(180 16 16)"/>
+      <path d="M16 1c2.4 2.2 2.4 4.4 0 6.4-2.4-2-2.4-4.2 0-6.4z" transform="rotate(225 16 16)"/>
+      <path d="M16 1c2.4 2.2 2.4 4.4 0 6.4-2.4-2-2.4-4.2 0-6.4z" transform="rotate(270 16 16)"/>
+      <path d="M16 1c2.4 2.2 2.4 4.4 0 6.4-2.4-2-2.4-4.2 0-6.4z" transform="rotate(315 16 16)"/>
+    </g>
+    <g fill="none" stroke="currentColor" stroke-linecap="round">
+      <path stroke-width="2.4" d="M16 7.5c4.7 0 8.5 3.8 8.5 8.5s-3.8 8.5-8.5 8.5-8.5-3.8-8.5-8.5"/>
+      <path stroke-width="1.6" d="M7.5 16c0-3 1.4-5.4 3.6-7M24.5 16c.8 2.6 3 3.4 4.6 2.6M7.5 16c-2.4.4-3.6 2.4-3 4.4"/>
+      <path stroke-width="1.8" d="M16 12.2c2.6.4 3.8 2.8 2.8 4.8-1.2 2.4-4.6 2.2-5.4.2-.8-2 1-3.6 2.6-2.8"/>
+    </g>
+  </symbol>
+</svg>
+<div id="app">
+  <!-- Loading -->
+  <section id="loading" class="screen active">
+    <svg class="totem-bg" viewBox="0 0 400 200" preserveAspectRatio="xMidYMax slice" aria-hidden="true">
+      <g fill="#000">
+        <path d="M200 10c-30 0-58 18-64 46l-34-30 14 50c-8 16-8 34 0 50l-20 74h208l-20-74c8-16 8-34 0-50l14-50-34 30c-6-28-34-46-64-46zm-34 70h22l-11 14zm46 0h22l-11 14z" opacity=".5"/>
+        <g opacity=".7">
+          <path d="M40 200V70h36v130zM44 80h8v6h-8zm20 0h8v6h-8zM44 120h28v8H44zM36 64h44l-6-12H42z"/>
+          <path d="M324 200V90h32v110zm6-100h6v6h-6zm14 0h6v6h-6zm-14 40h20v6h-20zm-10-46h40l-8-14h-24z"/>
+          <path d="M100 200v-80h24v80zm4-72h5v5h-5zm11 0h5v5h-5z"/>
+          <path d="M280 200v-70h22v70zm4-62h5v5h-5zm9 0h5v5h-5z"/>
+        </g>
+      </g>
+    </svg>
+    <div class="mist"></div>
+    <div class="emblem"><div class="emblem-face"></div></div>
+    <div class="progress"><div class="progress-fill"></div><div class="claw"></div></div>
+    <div class="parchment tip"></div>
+  </section>
+
+  <!-- Cut scene -->
+  <section id="intro" class="screen">
+    <div class="cine-bar top"></div>
+    <div class="intro-stage"><canvas id="intro-canvas" width="240" height="135"></canvas></div>
+    <div class="cine-bar bottom"><p class="subtitle"></p></div>
+    <button class="skip rune-btn" title="Skip">&#x16DF;</button>
+  </section>
+
+  <!-- Main menu -->
+  <section id="menu" class="screen">
+    <canvas class="menu-bg" width="240" height="135"></canvas>
+    <h1 class="title">Beast <span>&amp;</span> Crimson</h1>
+    <p class="subtitle-line">Tribes</p>
+    <div class="slabs"></div>
+    <div class="menu-foot">
+      <button class="start-btn" disabled><span>Rise</span></button>
+    </div>
+    <button class="gear corner" title="Settings"><svg class="vine"><use href="#vine-gear"/></svg></button>
+  </section>
+
+  <!-- Campaign -->
+  <section id="campaign" class="screen">
+    <div class="map"></div>
+    <header class="bar">
+      <button class="stone-btn back">&#8592; Tribes</button>
+      <h2 class="camp-title"></h2>
+      <button class="stone-btn warband-btn">Warband</button>
+    </header>
+    <div class="missions"></div>
+    <div class="brief hidden"></div>
+  </section>
+
+  <!-- Unit customization -->
+  <section id="warband" class="screen">
+    <header class="bar">
+      <button class="stone-btn back">&#8592; Campaign</button>
+      <h2>Warband</h2>
+      <span class="lineup-count"></span>
+    </header>
+    <div class="wb-body">
+      <div class="wb-list"></div>
+      <div class="wb-display"><div class="scene-back"></div><div class="pedestal"></div><canvas width="96" height="96"></canvas><div class="wb-name"></div><button class="stone-btn scene-btn" title="Change the display">&#x16DF; Scene</button></div>
+      <div class="wb-info"></div>
+    </div>
+  </section>
+
+  <!-- Battle -->
+  <section id="battle" class="screen">
+    <canvas id="battle-canvas" width="480" height="270"></canvas>
+    <div class="hud">
+      <div class="hud-left">
+        <div class="hp-bar"><div class="hp-end l"></div><div class="hp-liquid"></div><div class="hp-end r"></div><span class="hp-text"></span></div>
+        <div class="deployed"></div>
+      </div>
+      <div class="hud-mid"><div class="keep-bar"><div class="keep-fill"></div><span class="keep-name"></span></div></div>
+      <div class="hud-right">
+        <div class="gold-slab"><span class="coin"></span><span class="gold-val">0</span><span class="chest"></span></div>
+        <button class="gear" title="Pause"><svg class="vine"><use href="#vine-gear"/></svg></button>
+      </div>
+      <div class="unit-buttons"></div>
+      <div class="objective parchment"></div>
+      <div class="toast"></div>
+    </div>
+    <div class="pause hidden">
+      <div class="tablet">
+        <h3>Paused</h3>
+        <button class="molten resume">Resume</button>
+        <button class="molten retreat">Retreat</button>
+        <label class="toggle"><input type="checkbox" class="autocast"> Auto-cast abilities</label>
+      </div>
+    </div>
+  </section>
+
+  <!-- Results / Retreated -->
+  <section id="result" class="screen">
+    <div class="battlefield"><div class="mist-layer"></div><div class="mist-layer two"></div></div>
+    <div class="beam"></div>
+    <h2 class="result-title"></h2>
+    <div class="tablets"></div>
+    <div class="rewards"></div>
+    <div class="result-buttons">
+      <button class="stone-btn retry"><i class="glyph">&#x16B1;</i>Retry</button>
+      <button class="stone-btn to-menu"><i class="glyph">&#x16DF;</i>Main Menu</button>
+      <button class="stone-btn next"><i class="glyph">&#x2191;</i>Next Stage</button>
+    </div>
+  </section>
+
+  <!-- Settings -->
+  <div id="settings" class="modal hidden">
+    <div class="tablet">
+      <h3>Settings</h3>
+      <label class="toggle"><input type="checkbox" class="opt-sound"> Sound</label>
+      <label class="toggle"><input type="checkbox" class="opt-autocast"> Auto-cast abilities</label>
+      <label class="toggle"><input type="checkbox" class="opt-narration"> Tribe narration</label>
+      <label class="toggle"><input type="checkbox" class="opt-ambience"> Ambient sound</label>
+      <div class="ach-list"></div>
+      <button class="molten replay-intro">Replay the story</button>
+      <button class="molten reset">Erase all progress</button>
+      <button class="molten close">Close</button>
+    </div>
+  </div>
+  <div id="confirm" class="modal hidden"><div class="confirm-box"><p></p><button class="yes">Yes</button><button class="no">No</button></div></div>
+  <div id="tooltip" class="hidden"></div>
+  <div id="curtain"></div>
+  <div id="rotate-hint">Turn your device sideways</div>
+</div>
+
+<script src="assets/manifest.js"></script>
+<script src="src/data.js"></script>
+<script src="src/core.js"></script>
+<script src="src/battle.js"></script>
+<script src="src/ui.js"></script>
+</body>
+</html>
