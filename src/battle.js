@@ -15,18 +15,21 @@
       this.cv = canvas;
       this.ctx = canvas.getContext("2d");
       this.tribe = BC.TRIBES[opts.tribe];
-      this.stageIdx = opts.stage;
-      this.stage = BC.STAGES[opts.stage];
+      this.endless = !!opts.endless;
+      this.stageIdx = this.endless ? 0 : opts.stage;
+      this.stage = this.endless ? Object.assign({}, BC.STAGES[0], { name: "The Endless Levy — Wave 1", keepHp: 1400, pool: ["collector", "levy", "hound", "inquisitor"] }) : BC.STAGES[opts.stage];
       this.lineup = opts.lineup;
       this.onEnd = opts.onEnd;
       this.onHud = opts.onHud || (() => {});
+      this.onAction = opts.onAction || (() => {});
       this.toast = opts.toast || (() => {});
       this.autocast = !!opts.autocast;
+      this.speed = opts.speed || 1;
 
       const mods = this.tribe.mods;
       const T = this.T = BC.TUNE;
       const baseHp = T.baseHp * (mods.baseHp || 1);
-      this.player = { id: "player", hp: baseHp, max: baseHp, discountT: 0, fallen: [], atkT: 0 };
+      this.player = { id: "player", hp: baseHp, max: baseHp, discountT: 0, fallen: [], atkT: 0, animT: 0, spellCd: 0 };
       this.enemy = { id: "enemy", hp: this.stage.keepHp, max: this.stage.keepHp };
       this.gold = T.startGold;
       this.incomeMul = mods.income || 1;
@@ -34,18 +37,23 @@
       this.fx = [];      // impacts / texts / projectiles
       this.zones = [];
       this.t = 0;
+      this.hazardT = 0;
+      this.wave = 1;
+      this.waveT = 42;
       this.threat = 0;
       this.nextFoe = null;
       this.surgeT = BC.TUNE.surgeEvery;
+      this.midBossSpawned = false;
       this.bossSpawned = false;
       this.paused = false;
       this.over = false;
       this.nextId = 1;
-      this.seed = 1234567 + opts.stage * 977;
+      this.seed = 1234567 + (opts.stage || 0) * 977;
       this.slots = this.lineup.map(name => ({ name, stats: BC.unitStats(name, opts.tribe), cd: 0 }));
-      this.stats = { kills: 0, goldEarned: 0, deployed: 0, abilities: 0, lost: 0, dmg: 0, baseDmg: 0, bossKilled: false };
+      this.stats = { kills: 0, killedByType: {}, goldEarned: 0, deployed: 0, abilities: 0, lost: 0, dmg: 0, baseDmg: 0, bossKilled: false, waves: 1 };
       this.embers = [];
       this.bg = this.renderBackground();
+      this.loadBackdrop();
       this.ctx.imageSmoothingEnabled = false;
 
       this._pointer = (e) => this.onPointer(e);
@@ -55,8 +63,17 @@
     }
 
     destroy() {
+      this._destroyed = true;
       cancelAnimationFrame(this._raf);
       this.cv.removeEventListener("pointerdown", this._pointer);
+    }
+
+    loadBackdrop() {
+      if (typeof Image === "undefined") return;
+      const stageIdx = this.stageIdx;
+      BC.loadStageArt(stageIdx).then(art => {
+        if (art && !this._destroyed && stageIdx === this.stageIdx) this.bg = this.renderBackground();
+      });
     }
 
     rnd(n) { this.seed = (this.seed * 1103515245 + 12345) & 0x7fffffff; return n === undefined ? this.seed / 0x7fffffff : Math.floor((this.seed / 0x7fffffff) * n); }
@@ -64,7 +81,7 @@
     // ------------------------------------------------------------ spawning --
     deploy(i) {
       const slot = this.slots[i];
-      if (!slot || this.over) return false;
+      if (!slot || this.paused || this.over) return false;
       const cost = this.costOf(slot);
       if (slot.cd > 0) return false;
       if (this.gold < cost) { this.toast("Not enough gold"); return false; }
@@ -73,6 +90,7 @@
       this.spawnUnit(slot.name, slot.stats, BASE_X + 22);
       this.stats.deployed++;
       BC.sfx.deploy();
+      this.onAction("deploy", this);
       return true;
     }
 
@@ -89,16 +107,19 @@
       return e;
     }
 
-    spawnEnemy(id) {
+    spawnEnemy(id, extra) {
       const def = BC.ENEMIES[id];
       const b = Object.assign({}, def.stats);
       const T = this.T, i = this.stageIdx;
       b.hp *= 1 + T.enemyHp * i; b.dmg *= 1 + T.enemyDmg * i; b.def *= 1 + T.enemyDef * i;
-      return this.mk({
+      if (extra && extra.hpMul) b.hp *= extra.hpMul;
+      if (extra && extra.dmgMul) b.dmg *= extra.dmgMul;
+      return this.mk(Object.assign({
         side: "enemy", kind: "enemy", name: id, base: b, x: KEEP_X - 26, dir: -1,
-        sprite: "enemies:" + id, def, bounty: Math.round(def.bounty * (1 + 0.1 * this.stageIdx)),
-        scaleDraw: def.scale || 1,
-      });
+        sprite: "enemies:" + id, def, bounty: Math.round(def.bounty * (1 + 0.1 * this.stageIdx) * (extra && extra.bountyMul || 1)),
+        scaleDraw: (extra && extra.scale) || def.scale || 1,
+        castT: def.castCd ? def.castCd * 0.6 : 0,
+      }, extra || {}));
     }
 
     mk(o) {
@@ -113,9 +134,9 @@
 
     // ---------------------------------------------------------------- loop --
     loop(now) {
-      const dt = Math.min(0.05, (now - this._last) / 1000);
+      const rawDt = Math.min(0.05, (now - this._last) / 1000);
       this._last = now;
-      if (!this.paused && !this.over) this.update(dt);
+      if (!this.paused && !this.over) this.update(rawDt * (this.speed || 1));
       this.draw();
       this._raf = requestAnimationFrame((t) => this.loop(t));
     }
@@ -127,10 +148,14 @@
       for (const e of this.ents) if (!e.dead && e.side === "player" && e.passive && e.passive.gold) inc += e.passive.gold;
       this.addGold(inc * dt, null, true);
       if (this.player.discountT > 0) this.player.discountT -= dt;
+      if (this.player.animT > 0) this.player.animT = Math.max(0, this.player.animT - dt);
+      if (this.player.spellCd > 0) this.player.spellCd = Math.max(0, this.player.spellCd - dt);
+      if (this.autocast && this.player.spellCd === 0 && this.t > 8 && this.foesOf("player").length >= 2 && this.alliesNear(240, 500).length >= 2) this.castSpell(true);
       for (const s of this.slots) if (s.cd > 0) s.cd = Math.max(0, s.cd - dt);
 
       this.updateSpawner(dt);
       this.updateTotem(dt);
+      this.updateHazard(dt);
 
       for (const e of this.ents) if (!e.dead) this.updateEnt(e, dt);
       for (const z of this.zones) {
@@ -146,12 +171,74 @@
       for (const f of this.fx) f.t += dt;
       this.fx = this.fx.filter(f => f.t < f.dur);
 
-      if (this.enemy.hp <= 0) return this.finish(true);
+      if (this.enemy.hp <= 0) {
+        if (this.endless) this.advanceEndlessWave(true);
+        else return this.finish(true);
+      }
       if (this.player.hp <= 0) return this.finish(false);
       this.onHud(this);
     }
 
+    advanceEndlessWave(keepBroken) {
+      this.wave++;
+      this.waveT = 42;
+      this.stats.waves = this.wave;
+      this.stageIdx = this.wave - 1;
+      const st = BC.STAGES[(this.wave - 1) % BC.STAGES.length];
+      const allKeys = Object.keys(BC.ENEMIES).filter(k => k !== "king");
+      const pool = st.pool.concat([allKeys[this.wave % allKeys.length]]);
+      this.stage = Object.assign({}, st, {
+        name: `Wave ${this.wave} — ${st.name}`,
+        pool,
+      });
+      if (keepBroken) {
+        this.enemy.max = Math.round(1400 * Math.pow(1.35, this.wave - 1));
+        this.enemy.hp = this.enemy.max;
+        this.healBase(this.player, this.player.max * 0.25);
+        this.addGold(120 + this.wave * 20, { x: KEEP_X - 30 });
+        for (const e of this.ents) if (!e.dead && e.side === "player") e.x = Math.max(BASE_X + 20, Math.min(e.x, KEEP_X - 190));
+        for (let i = 0; i < 3; i++) {
+          const g = this.spawnEnemy(pool[this.rnd(pool.length)]);
+          g.x -= i * 14;
+        }
+      }
+      this.bg = this.renderBackground();
+      this.loadBackdrop();
+      if (this.wave % 3 === 0) {
+        const b = this.spawnEnemy(this.wave % 6 === 0 ? "king" : "golem", { scale: 1.5, hpMul: 1.35, dmgMul: 1.15, bountyMul: 1.5 });
+        b.yOff = -4;
+      }
+      this.toast(`Wave ${this.wave}: ${st.name}!`);
+      BC.sfx.drums();
+    }
+
+    updateHazard(dt) {
+      const hz = this.stage.hazard;
+      if (!hz) return;
+      this.hazardT += dt;
+      if (this.hazardT < 1) return;
+      this.hazardT -= 1;
+      if (hz.id === "canopy") {
+        for (const e of this.ents) if (!e.dead && e.side === "player" && e.kind === "unit") this.heal(e, 1.5);
+      } else if (hz.id === "lava") {
+        for (const e of this.ents) if (!e.dead && e.kind !== "decoy") this.dealDamage(null, e, 2, true);
+      } else if (hz.id === "fort" && Math.floor(this.t) % 12 === 0) {
+        const front = this.alliesNear(KEEP_X, 420).sort((a, b) => b.x - a.x)[0];
+        if (front) {
+          this.dealDamage(null, front, 28 + 3 * this.stageIdx);
+          this.fx.push({ kind: "bolt", x0: KEEP_X - 20, y0: LANE_Y - 56, x1: front.x, y1: LANE_Y - 14 + front.yOff, t: 0, dur: 0.22, col: "#ff9f1c" });
+        }
+      }
+    }
+
     updateSpawner(dt) {
+      if (this.endless) {
+        this.waveT -= dt;
+        if (this.waveT <= 0) {
+          this.waveT = 42;
+          this.advanceEndlessWave(false);
+        }
+      }
       // The crown accrues "threat" and pays each enemy's bounty to field it,
       // so tougher foes arrive less often instead of drowning the lane.
       const st = this.stage, T = this.T;
@@ -176,6 +263,13 @@
           e.x += 8 + i++ * 12;
         }
       }
+      if (st.midBoss && !this.midBossSpawned && (this.enemy.hp < this.enemy.max * 0.65 || this.t > 70)) {
+        this.midBossSpawned = true;
+        const mb = this.spawnEnemy(st.midBoss, { scale: 1.45, hpMul: 1.5, dmgMul: 1.15, bountyMul: 2 });
+        mb.yOff = -3;
+        this.toast((st.midBossName || "A champion") + " enters the lane!");
+        BC.sfx.drums();
+      }
       if (st.boss && !this.bossSpawned && (this.enemy.hp < this.enemy.max * 0.6 || this.t > 100)) {
         this.bossSpawned = true;
         const b = this.spawnEnemy(st.boss);
@@ -192,6 +286,7 @@
         const t = this.ents.find(e => !e.dead && e.side === "enemy" && e.x < BASE_X + 90);
         if (t) {
           this.player.atkT = 1.2;
+          this.player.animT = 0.5;
           this.dealDamage(null, t, (12 + 4 * this.stageIdx) * (this.tribe.mods.totem || 1));
           this.fx.push({ kind: "bolt", x0: BASE_X, y0: LANE_Y - 50, x1: t.x, y1: LANE_Y - 14 + t.yOff, t: 0, dur: 0.2, col: this.tribe.colors.ink });
         }
@@ -203,6 +298,13 @@
       for (const b of e.buffs) { if (b.add) s[b.stat] += b.v; else s[b.stat] *= b.v; }
       if (e.passive && e.passive.killStack) s.dmg *= 1 + Math.min(10, e.kills) * e.passive.killStack;
       if (e.status.slow) { s.move *= 1 - e.status.slow.v; s.atkspd *= 1 - e.status.slow.v * 0.5; }
+      const hz = this.stage.hazard;
+      if (hz) {
+        if (hz.id === "marsh") s.move *= 0.88;
+        else if (hz.id === "tide" && e.side === "player") s.move += 3;
+        else if (hz.id === "blizzard" && s.range > 35) s.range *= 0.85;
+        else if (hz.id === "sandstorm") s.atkspd *= 0.9;
+      }
       e.s = s;
     }
 
@@ -225,6 +327,27 @@
       if (e.ability) {
         e.abT = Math.max(0, e.abT - dt);
         if (this.autocast && e.abT === 0 && e.age > 0.5) this.cast(e, true);
+      }
+      if (e.def && e.def.castCd && !e.status.stun) {
+        e.castT = Math.max(0, (e.castT || 0) - dt);
+        if (e.castT === 0) {
+          if (e.def.onCast === "heresy") {
+            const t = this.nearestEnemy(e, e.s.range + 30);
+            if (t) {
+              e.castT = e.def.castCd;
+              this.status(t, "burn", 3, e.s.dmg * 0.4);
+              if (t.ability) t.abT = Math.min(t.s.abspd, (t.abT || 0) + 2.5);
+              this.text(t.x, LANE_Y - 44 + t.yOff, "HERESY!", "#ff4500", 0.9);
+            }
+          } else if (e.def.onCast === "aegis") {
+            const allies = this.alliesNear(e.x, 70, e.side);
+            if (allies.length > 1) {
+              e.castT = e.def.castCd;
+              allies.forEach(a => this.shield(a, 18 + 2 * this.stageIdx));
+              this.text(e.x, LANE_Y - 46 + e.yOff, "AEGIS", "#ffd700", 0.9);
+            }
+          }
+        }
       }
       if (e.status.stun) return;
 
@@ -266,7 +389,7 @@
         const dealt = this.dealDamage(e, foe, e.s.dmg);
         if (e.status.lifesteal) this.heal(e, dealt * e.status.lifesteal.v);
         if (e.def && e.def.onHit === "slow") this.status(foe, "slow", 2, 0.3);
-        if (e.def && e.def.onHit === "steal" && this.gold > 0) { const g = Math.min(this.gold, 8); this.gold -= g; this.text(foe.x, LANE_Y - 40, "-" + g + "g", "#ffd700"); }
+        if (e.side === "enemy" && e.def && e.def.onHit === "steal" && this.gold > 0) { const g = Math.min(this.gold, 8); this.gold -= g; this.text(foe.x, LANE_Y - 40, "-" + g + "g", "#ffd700"); }
         if (ranged) this.fx.push({ kind: "bolt", x0: e.x, y0: LANE_Y - 18 + e.yOff, x1: foe.x, y1: LANE_Y - 16 + foe.yOff, t: 0, dur: 0.18, col: e.side === "player" ? this.auraOf(e) : "#e8d0a0" });
       } else {
         const side = e.side === "player" ? this.enemy : this.player;
@@ -299,6 +422,7 @@
       t.deathT = 0.4;
       if (t.side === "enemy") {
         this.stats.kills++;
+        this.stats.killedByType[t.name] = (this.stats.killedByType[t.name] || 0) + 1;
         const g = Math.round(t.bounty * (this.tribe.mods.bounty || 1));
         this.addGold(g, t);
         if (src && src.passive && src.passive.killStack) src.kills++;
@@ -320,14 +444,68 @@
 
     // ------------------------------------------------------------ abilities --
     cast(u, auto) {
-      if (!u.ability || u.abT > 0 || u.dead || this.over) return false;
+      if (!u.ability || u.abT > 0 || u.dead || this.paused || this.over) return false;
+      this._src = u.ability.name;
       const r = u.ability.run(this, u);
+      this._src = null;
       if (r === false) { if (!auto) this.toast(u.ability.name + ": no target"); return false; }
       u.abT = u.s.abspd;
       u.anim = "attack"; u.animT = 0;
       this.stats.abilities++;
       this.text(u.x, LANE_Y - 50 + u.yOff, u.ability.name, this.auraOf(u), 1.2);
       BC.sfx.cast();
+      if (!auto) this.onAction("ability", this);
+      return true;
+    }
+
+    abilityState(i) {
+      const slot = this.slots[i];
+      const units = slot ? this.ents.filter(e => !e.dead && e.side === "player" && e.name === slot.name && e.ability) : [];
+      return {
+        deployed: units.length,
+        ready: units.filter(e => e.abT === 0).length,
+        cooldown: units.length ? Math.min(...units.map(e => e.abT)) : 0,
+      };
+    }
+
+    castBySlot(i) {
+      const slot = this.slots[i];
+      if (!slot || this.paused || this.over) return false;
+      const ready = this.ents.filter(e => !e.dead && e.side === "player" && e.name === slot.name && e.ability && e.abT === 0).sort((a, b) => b.x - a.x);
+      if (ready[0]) return this.cast(ready[0], false);
+      const any = this.ents.find(e => !e.dead && e.side === "player" && e.name === slot.name && e.ability);
+      if (any) this.toast(any.ability.name + " ready in " + Math.ceil(any.abT) + "s");
+      return false;
+    }
+
+    castAny() {
+      if (this.paused || this.over) return false;
+      const ready = this.ents.filter(e => !e.dead && e.side === "player" && e.ability && e.abT === 0).sort((a, b) => b.x - a.x);
+      for (const u of ready) if (this.cast(u, false)) return true;
+      return false;
+    }
+
+    castSpell(auto) {
+      if (this.paused || this.over) return false;
+      const sp = this.tribe.spell;
+      if (!sp || this.player.spellCd > 0) {
+        if (!auto && sp && this.player.spellCd > 0) this.toast(sp.name + " ready in " + Math.ceil(this.player.spellCd) + "s");
+        return false;
+      }
+      this._src = sp.name;
+      const r = sp.run(this);
+      this._src = null;
+      if (r === false) {
+        if (!auto) this.toast(sp.name + ": no warriors deployed");
+        return false;
+      }
+      this.player.spellCd = sp.cd;
+      this.player.animT = 0.5;
+      this.stats.abilities++;
+      this.text(BASE_X + 10, LANE_Y - 84, sp.name.toUpperCase(), this.tribe.colors.ink, 1.4);
+      BC.sfx.cast();
+      BC.sfx.drums();
+      if (!auto) this.onAction("spell", this);
       return true;
     }
 
@@ -344,7 +522,14 @@
     heal(t, amt) { if (t.dead || amt <= 0) return; const h = Math.min(amt, t.s.hp - t.hp); t.hp += h; if (h >= 1) this.text(t.x, LANE_Y - 38 + t.yOff, "+" + Math.round(h), "#7dff8a"); }
     shield(t, amt) { t.shield = Math.max(t.shield, amt); }
     status(t, kind, dur, v) { t.status[kind] = { t: dur, v: v || 0 }; }
-    buff(t, stat, v, dur, add) { t.buffs.push({ stat, v, t: dur, add: !!add }); this.recompute(t); }
+    // Recasting the same ability refreshes its buff instead of stacking it.
+    buff(t, stat, v, dur, add) {
+      const src = this._src || null;
+      const cur = src && t.buffs.find(b => b.src === src && b.stat === stat);
+      if (cur) { cur.t = Math.max(cur.t, dur); cur.v = Math.max(cur.v, v); }
+      else t.buffs.push({ stat, v, t: dur, add: !!add, src });
+      this.recompute(t);
+    }
     knock(t, dx) { if (!(t.def && t.def.boss)) t.x = Math.max(BASE_X, Math.min(KEEP_X - 20, t.x + dx)); }
     side(u) { return u.side === "player" ? this.player : this.enemy; }
     healBase(side, amt) { side.hp = Math.min(side.max, side.hp + amt); this.text(BASE_X, LANE_Y - 80, "+" + Math.round(amt), "#7dff8a"); }
@@ -385,6 +570,8 @@
       if (best) {
         if (best.abT > 0) this.toast(best.ability.name + " ready in " + Math.ceil(best.abT) + "s");
         else this.cast(best, false);
+      } else if (x < BASE_X + 38 && y > LANE_Y - 90 && y < LANE_Y + 10) {
+        this.castSpell(false);
       }
     }
 
@@ -402,7 +589,16 @@
       g.fillStyle = grad; g.fillRect(0, 0, W, H);
       let s = 99 + this.stageIdx * 31;
       const r = () => { s = (s * 16807) % 2147483647; return s / 2147483647; };
-      if (scene === "pits") {
+      const art = BC.images["stage:" + (this.stageIdx % BC.STAGES.length)];
+      if (art && art.naturalWidth) {
+        // A quiet crop of the biome painting gives every stage its own horizon.
+        const cropH = art.naturalWidth * GROUND / W;
+        g.imageSmoothingEnabled = false;
+        g.drawImage(art, 0, (art.naturalHeight - cropH) * .48, art.naturalWidth, cropH, 0, 0, W, GROUND);
+        const veil = g.createLinearGradient(0, 0, 0, GROUND);
+        veil.addColorStop(0, "rgba(4,3,6,.72)"); veil.addColorStop(.55, "rgba(4,3,6,.28)"); veil.addColorStop(1, "rgba(4,3,6,.68)");
+        g.fillStyle = veil; g.fillRect(0, 0, W, GROUND);
+      } else if (scene === "pits") {
         for (let i = 0; i < 14; i++) { const x = r() * W, w = 20 + r() * 60, h = 30 + r() * 90; g.fillStyle = "#1a0a08"; g.beginPath(); g.moveTo(x - w, GROUND); g.lineTo(x, GROUND - h); g.lineTo(x + w, GROUND); g.fill(); }
         for (let i = 0; i < 6; i++) { const x = r() * W; const gg = g.createRadialGradient(x, GROUND, 2, x, GROUND, 40); gg.addColorStop(0, "rgba(255,90,20,0.6)"); gg.addColorStop(1, "rgba(255,69,0,0)"); g.fillStyle = gg; g.fillRect(x - 40, GROUND - 40, 80, 40); }
         for (let i = 0; i < 18; i++) { const x = r() * W; g.fillStyle = "#2a0d08"; const sy = GROUND - 46 + r() * 30; g.fillRect(x, sy, 2, GROUND - sy); g.fillStyle = col.ink; g.fillRect(x, sy, 1, 2); }
@@ -425,6 +621,9 @@
       g.fillStyle = shade; g.fillRect(0, GROUND, W, H - GROUND);
       g.globalAlpha = 0.18; g.fillStyle = col.slab; g.fillRect(0, GROUND, W, H - GROUND); g.globalAlpha = 1;
       g.fillStyle = "rgba(0,0,0,0.5)"; g.fillRect(0, GROUND, W, 2);
+      // A worn path separates combatants from the busier ground texture.
+      g.fillStyle = "rgba(22,15,12,.38)"; g.fillRect(0, LANE_Y - 5, W, 14);
+      g.fillStyle = "rgba(214,181,128,.08)"; g.fillRect(0, LANE_Y + 9, W, 1);
       return c;
     }
 
@@ -434,21 +633,26 @@
       g.drawImage(this.bg, 0, 0);
       const t = this.t;
       // ambient: embers / glowing eyes / sparkles
-      if (this.embers.length < 30 && Math.random() < 0.3) this.embers.push({ x: Math.random() * W, y: 200, v: 10 + Math.random() * 20, l: 0 });
+      if (BC.reducedMotion) this.embers.length = 0;
+      if (!BC.reducedMotion && !this.paused && this.embers.length < 30 && Math.random() < 0.3) this.embers.push({ x: Math.random() * W, y: 200, v: 10 + Math.random() * 20, l: 0 });
       const ember = this.tribe.bgScene === "pits" ? "#ff6a1a" : this.tribe.bgScene === "forest" ? "#98FB98" : "#FFD700";
       for (const e of this.embers) { e.y -= e.v / 60; e.l += 1 / 60; g.fillStyle = ember; g.globalAlpha = Math.max(0, 1 - e.l / 3); g.fillRect(e.x + Math.sin(e.l * 3) * 3, e.y, 1, 1); }
       g.globalAlpha = 1;
       this.embers = this.embers.filter(e => e.l < 3);
-      if (this.tribe.bgScene === "pits" && Math.sin(t * 0.7) > 0.6) { g.fillStyle = "#FF0000"; g.fillRect(140, 120, 2, 1); g.fillRect(145, 120, 2, 1); }
+      if (!BC.reducedMotion && this.tribe.bgScene === "pits" && Math.sin(t * 0.7) > 0.6) { g.fillStyle = "#FF0000"; g.fillRect(140, 120, 2, 1); g.fillRect(145, 120, 2, 1); }
 
       // strongholds
       const pf = this.player.flash > 0 ? (this.player.flash -= 1 / 60) : 0;
-      BC.drawFrame(g, "bases:" + this.tribe.id, Math.floor(t * 4) % 4, BASE_X - 40, LANE_Y - 82, 2.5);
+      const baseFrame = this.player.animT > 0 ? 4 + Math.min(4, Math.floor((0.5 - this.player.animT) * 10)) : Math.floor(t * 4) % 4;
+      BC.drawFrame(g, "bases:" + this.tribe.id, baseFrame, BASE_X - 40, LANE_Y - 82, 2.5);
       if (pf > 0) { g.fillStyle = "rgba(255,0,0,0.25)"; g.fillRect(BASE_X - 40, LANE_Y - 82, 80, 80); }
+      BC.drawFrame(g, "props:campfire", Math.floor(t * 7) % 4, BASE_X + 20, LANE_Y - 26, 1);
+      BC.drawFrame(g, "props:lantern", Math.floor(t * 6) % 4, BASE_X - 30, LANE_Y - 44, 1);
       const ef = this.enemy.flash > 0 ? (this.enemy.flash -= 1 / 60) : 0;
       BC.drawFrame(g, "keeps:" + this.stage.keep, 0, KEEP_X - 40, LANE_Y - 78, 2.5);
       if (ef > 0) { g.fillStyle = "rgba(255,255,255,0.25)"; g.fillRect(KEEP_X - 40, LANE_Y - 78, 80, 80); }
       BC.drawFrame(g, "props:brazier", Math.floor(t * 8) % 4, KEEP_X - 58, LANE_Y - 30, 1);
+      BC.drawFrame(g, "props:lantern", Math.floor(t * 6 + 2) % 4, KEEP_X + 8, LANE_Y - 44, 1);
 
       // zones
       for (const z of this.zones) {
@@ -490,10 +694,10 @@
       g.beginPath(); g.ellipse(e.x, LANE_Y + e.yOff, 10 * sc, 3, 0, 0, Math.PI * 2); g.fill();
       // ready-ability circle (luminescent tribal ring)
       if (e.ability && e.abT === 0 && !e.dead) {
-        const p = 0.5 + 0.5 * Math.sin(this.t * 6);
+        const p = BC.reducedMotion ? 1 : 0.5 + 0.5 * Math.sin(this.t * 6);
         g.strokeStyle = this.auraOf(e); g.globalAlpha = 0.5 + 0.5 * p; g.lineWidth = 1;
         g.beginPath(); g.ellipse(e.x, LANE_Y + e.yOff, 14, 5, 0, 0, Math.PI * 2); g.stroke();
-        for (let i = 0; i < 6; i++) { const a = this.t * 2 + i * Math.PI / 3; g.fillStyle = this.auraOf(e); g.fillRect(e.x + Math.cos(a) * 14 - 1, LANE_Y + e.yOff + Math.sin(a) * 5 - 1, 2, 2); }
+        for (let i = 0; i < 6; i++) { const a = (BC.reducedMotion ? 0 : this.t * 2) + i * Math.PI / 3; g.fillStyle = this.auraOf(e); g.fillRect(e.x + Math.cos(a) * 14 - 1, LANE_Y + e.yOff + Math.sin(a) * 5 - 1, 2, 2); }
         g.globalAlpha = 1;
       }
       let frame;

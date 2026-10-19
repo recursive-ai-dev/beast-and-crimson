@@ -1,0 +1,61 @@
+{
+  "generator": "OpenAI built-in image_gen",
+  "style": "Dark fantasy 16-bit pixel art",
+  "assets": [
+    {
+      "filename": "crest.png",
+      "transparent_background": true,
+      "prompt": "Use case: stylized-concept. Asset type: transparent title crest for the dark fantasy pixel-art game Beast and Crimson: Tribes. Subject: a snarling crimson wolf skull carved from black volcanic stone, glowing red eyes, two crossed bone axes behind, a restrained aged-gold rim. Symmetrical, centered square composition, entire silhouette visible with generous transparent margins. Style: crisp hand-pixeled 16-bit game art, strong pixel clusters, limited palette of near-black, crimson, bone and antique gold; bold readable silhouette at 160 pixels, moody red highlights. No text, letters, watermark, checkerboard or background. Generate a true transparent PNG."
+    },
+    {
+      "filename": "stage-01.png",
+      "prompt": "Use case: stylized-concept. Asset type: one standalone portrait biome card painting for the dark fantasy pixel-art game Beast and Crimson: Tribes. Style: crisp 16-bit game background art, large deliberate pixel clusters, limited palette, hard pixel edges and deep near-black shadows, cinematic atmosphere. Portrait composition around 9:13 aspect ratio, a clear environmental landmark in the upper two thirds; keep the lower quarter dark and simple so the game can overlay labels. This is environment art only: no people or foreground characters, no text, letters, numbers, border, UI, watermark or collage. Full bleed opaque background.\nBiome: Bloodwood Forest.\nScene: A bleeding crimson forest with gnarled near-black trunks, red leaves drifting upward toward a dense canopy, a winding dark path disappearing into scarlet mist.",
+      "transparent_background": false
+    },
+    {
+      "filename": "stage-02.png",
+      "prompt": "Use case: stylized-concept. Asset type: one standalone portrait biome card painting for the dark fantasy pixel-art game Beast and Crimson: Tribes. Style: crisp 16-bit game background art, large deliberate pixel clusters, limited palette, hard pixel edges and deep near-black shadows, cinematic atmosphere. Portrait composition around 9:13 aspect ratio, a clear environmental landmark in the upper two thirds; keep the lower quarter dark and simple so the game can overlay labels. This is environment art only: no people or foreground characters, no text, letters, numbers, border, UI, watermark or collage. Full bleed opaque background.\nBiome: Obsidian Wastes.\nScene: Jagged obsidian glass wastes with cracks of glowing lava, black rock spires and a smoldering volcanic horizon.",
+      "transparent_background": false
+    },
+    {
+      "filename": "stage-03.png",
+      "prompt": "Use case: stylized-concept. Asset type: one standalone portrait biome card painting for the dark fantasy pixel-art game Beast and Crimson: Tribes. Style: crisp 16-bit game background art, large deliberate pixel clusters, limited palette, hard pixel edges and deep near-black shadows, cinematic atmosphere. Portrait composition around 9:13 aspect ratio, a clear environmental landmark in the upper two thirds; keep the lower quarter dark and simple so the game can overlay labels. This is environment art only: no people or foreground characters, no text, letters, numbers, border, UI, watermark or collage. Full bleed opaque background.\nBiome: The Whispering Caves.\nScene: A cavern of whispering echoes with faint blue crystals, layered arches of dark stone and a narrow path descending toward an eerie blue glow.",
+      "transparent_background": false
+    },
+    {
+      "filename": "stage-04.png",
+      "prompt": "Use case: stylized-concept. Asset type: one standalone portrait biome card painting for the dark fantasy pixel-art game Beast and Crimson: Tribes. Style: crisp 16-bit game background art, large deliberate pixel clusters, limited palette, hard pixel edges and deep near-black shadows, cinematic atmosphere. Portrait composition around 9:13 aspect ratio, a clear environmental landmark in the upper two thirds; keep the lower quarter dark and simple so the game can overlay labels. This is environment art only: no people or foreground characters, no text, letters, numbers, border, UI, watermark or collage. Full bleed opaque background.\nBiome: Sanguine Marshes.\nScene: A blood-red marsh with drowned reeds, ancient submerged tree roots, broken stumps and low pale fog over still crimson water.",
+      "transparent_background": false
+    },
+    {
+      "filename": "stage-05.png",
+      "prompt": "Use case: stylized-concept. Asset type: one standalone portrait biome card painting for the dark fantasy pixel-art game Beast and Crimson: Tribes. Style: crisp 16-bit game background art, large deliberate pixel clusters, limited palette, hard pixel edges and deep near-black shadows, cinematic atmosphere. Portrait composition around 9:13 aspect ratio, a clear environmental landmark in the upper two thirds; keep the lower quarter dark and simple so the game can overlay labels. This is environment art only: no people or foreground characters, no text, letters, numbers, border, UI, watermark or collage. Full bleed opaque background.\nBiome: Abyssal Shore.\nScene: A dark shore where black tides pull inward under a green moon, wet rocks, inward curling waves and distant drowned standing stones.",
+      "transparent_background": false
+    },
+    {
+      "filename": "stage-06.png",
+      "prompt": "Use case: stylized-concept. Asset type: one standalone portrait biome card painting for the dark fantasy pixel-art game Beast and Crimson: Tribes. Style: crisp 16-bit game background art, large deliberate pixel clusters, limited palette, hard pixel edges and deep near-black shadows, cinematic atmosphere. Portrait composition around 9:13 aspect ratio, a clear environmental landmark in the upper two thirds; keep the lower quarter dark and simple so the game can overlay labels. This is environment art only: no people or foreground characters, no text, letters, numbers, border, UI, watermark or collage. Full bleed opaque background.\nBiome: The Iron Fortress.\nScene: A towering iron fortress with massive chains, narrow gates and orange furnace light glowing through its armored walls.",
+      "transparent_background": false
+    },
+    {
+      "filename": "stage-07.png",
+      "prompt": "Use case: stylized-concept. Asset type: one standalone portrait biome card painting for the dark fantasy pixel-art game Beast and Crimson: Tribes. Style: crisp 16-bit game background art, large deliberate pixel clusters, limited palette, hard pixel edges and deep near-black shadows, cinematic atmosphere. Portrait composition around 9:13 aspect ratio, a clear environmental landmark in the upper two thirds; keep the lower quarter dark and simple so the game can overlay labels. This is environment art only: no people or foreground characters, no text, letters, numbers, border, UI, watermark or collage. Full bleed opaque background.\nBiome: Shadow Peaks.\nScene: Jagged mountain peaks under falling black snow, a winding high pass and a dim cold moon behind heavy clouds.",
+      "transparent_background": false
+    },
+    {
+      "filename": "stage-08.png",
+      "prompt": "Use case: stylized-concept. Asset type: one standalone portrait biome card painting for the dark fantasy pixel-art game Beast and Crimson: Tribes. Style: crisp 16-bit game background art, large deliberate pixel clusters, limited palette, hard pixel edges and deep near-black shadows, cinematic atmosphere. Portrait composition around 9:13 aspect ratio, a clear environmental landmark in the upper two thirds; keep the lower quarter dark and simple so the game can overlay labels. This is environment art only: no people or foreground characters, no text, letters, numbers, border, UI, watermark or collage. Full bleed opaque background.\nBiome: Ebon Plains.\nScene: Endless dark plains with long grass bending toward a solitary black obelisk on the horizon beneath a bruised red-purple sky.",
+      "transparent_background": false
+    },
+    {
+      "filename": "stage-09.png",
+      "prompt": "Use case: stylized-concept. Asset type: one standalone portrait biome card painting for the dark fantasy pixel-art game Beast and Crimson: Tribes. Style: crisp 16-bit game background art, large deliberate pixel clusters, limited palette, hard pixel edges and deep near-black shadows, cinematic atmosphere. Portrait composition around 9:13 aspect ratio, a clear environmental landmark in the upper two thirds; keep the lower quarter dark and simple so the game can overlay labels. This is environment art only: no people or foreground characters, no text, letters, numbers, border, UI, watermark or collage. Full bleed opaque background.\nBiome: Crimson Desert.\nScene: Red sand dunes with half-buried giant armor and ancient bones, wind-carved ridges fading into a dark red sandstorm.",
+      "transparent_background": false
+    },
+    {
+      "filename": "stage-10.png",
+      "prompt": "Use case: stylized-concept. Asset type: one standalone portrait biome card painting for the dark fantasy pixel-art game Beast and Crimson: Tribes. Style: crisp 16-bit game background art, large deliberate pixel clusters, limited palette, hard pixel edges and deep near-black shadows, cinematic atmosphere. Portrait composition around 9:13 aspect ratio, a clear environmental landmark in the upper two thirds; keep the lower quarter dark and simple so the game can overlay labels. This is environment art only: no people or foreground characters, no text, letters, numbers, border, UI, watermark or collage. Full bleed opaque background.\nBiome: Spirit Vale — The Collector's Throne.\nScene: A haunted spirit valley with a ghostly golden throne, spectral mist around the throne, dark hills, faint cold lights and scattered tarnished coins.",
+      "transparent_background": false
+    }
+  ]
+}

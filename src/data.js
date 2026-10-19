@@ -13,6 +13,17 @@
       threat: "Every ember here was once a village. Feed the fire or become it.",
       mods: { dmg: 1.25, hp: 1.15 },
       bgScene: "pits",
+      spell: {
+        name: "Blood Sacrifice", cd: 28,
+        desc: "Spill 8% of the Totem's current life: all deployed warriors gain +35% damage and +35% attack speed for 6s.",
+        run: (B) => {
+          const allies = B.alliesNear(240, 500);
+          if (!allies.length || B.player.hp < B.player.max * 0.35) return false;
+          B.player.hp = Math.max(1, B.player.hp * 0.92);
+          B.player.flash = 0.25;
+          allies.forEach(a => { B.buff(a, "dmg", 1.35, 6); B.buff(a, "atkspd", 1.35, 6); B.impact(a, a); });
+        },
+      },
     },
     defense: {
       id: "defense", name: "Guardvaw", word: "Spuea", pron: "/'spu.e.a/",
@@ -21,6 +32,16 @@
       threat: "The river remembers every body it carried. Stand, or join them.",
       mods: { baseHp: 1.5, def: 1.1, totem: 2 },
       bgScene: "forest",
+      spell: {
+        name: "Spuea Bulwark", cd: 28,
+        desc: "Raise a stone barricade ahead of your vanguard and wrap all allies in an 80 HP shield.",
+        run: (B) => {
+          const allies = B.alliesNear(240, 500);
+          const frontX = allies.reduce((m, a) => Math.max(m, a.x), 80);
+          B.decoy({ side: "player", name: "Totem Shieldbearer", base: { hp: 450, dmg: 0, def: 18, move: 0, range: 20, atkspd: 0.5 }, x: Math.min(400, frontX + 24), dir: 1, sprite: "bases:defense", yOff: -4 }, Math.min(400, frontX + 24), 450);
+          allies.forEach(a => { B.shield(a, 80); B.impact(a, a); });
+        },
+      },
     },
     greed: {
       id: "greed", name: "Goldclaw", word: "Pasea", pron: "/pa'se.a/",
@@ -29,6 +50,21 @@
       threat: "They taxed your dead. Now you will tax theirs.",
       mods: { income: 1.4, bounty: 1.5 },
       bgScene: "cave",
+      spell: {
+        name: "Royal Bribe", cd: 28,
+        desc: "Buy off the strongest non-boss foe on the field to fight for Goldclaw, or mint 90 gold.",
+        run: (B) => {
+          const foes = B.foesOf("player").filter(e => !(e.def && e.def.boss)).sort((a, b) => b.hp - a.hp);
+          if (foes[0]) {
+            const f = foes[0];
+            f.side = "player"; f.dir = 1; f.hp = f.s.hp; f.shield = 60;
+            B.text(f.x, 140, "BRIBED!", "#FFD700", 1.1);
+            B.addGold(35, f);
+          } else {
+            B.addGold(90, { x: 60 });
+          }
+        },
+      },
     },
   };
 
@@ -115,8 +151,8 @@
   const ENEMIES = {
     collector: E([90, 8, 2, 1.0, 22, 22, 12], { lore: "Ledger in one hand, cudgel in the other." }),
     levy: E([150, 12, 8, 0.9, 20, 24, 18], { lore: "Conscripts who forgot their own villages." }),
-    inquisitor: E([110, 16, 4, 0.8, 18, 90, 22], { lore: "Burns heresy from range.", ranged: true }),
-    knight: E([320, 22, 18, 0.8, 18, 26, 40], { lore: "Gilded armour paid for in drowned tithes." }),
+    inquisitor: E([110, 16, 4, 0.8, 18, 90, 22], { lore: "Burns heresy from range and delays unit abilities.", ranged: true, castCd: 9, onCast: "heresy" }),
+    knight: E([320, 22, 18, 0.8, 18, 26, 40], { lore: "Gilded armour paid for in drowned tithes. Rally-shields nearby troops.", castCd: 14, onCast: "aegis" }),
     hound: E([110, 14, 2, 1.4, 42, 20, 14], { lore: "Bred to run down the ones who flee." }),
     golem: E([600, 28, 26, 0.5, 12, 26, 60], { lore: "Iron poured over the bones of debtors." }),
     carrion: E([80, 12, 0, 1.2, 40, 20, 14], { lore: "They follow the collectors, and feast after." }),
@@ -129,23 +165,30 @@
   const S = (name, tile, keep, keepHp, pool, pace, lore, extra) => Object.assign({ name, tile, keep, keepHp, pool, pace, lore }, extra || {});
   const STAGES = [
     S("Bloodwood Forest", "moss", "oldstone", 900, ["collector", "collector", "carrion"], 1,
-      "The crimson leaves fall upward here, back toward the branches that bled them. The collectors came at dusk, and the forest drank what they left."),
-    S("Obsidian Wastes", "stone", "cinder", 1100, ["collector", "levy", "hound"], 1,
-      "Glass grows where the screaming stopped. Every shard holds the last face that saw it form."),
+      "The crimson leaves fall upward here, back toward the branches that bled them. The collectors came at dusk, and the forest drank what they left.",
+      { hazard: { id: "canopy", name: "Crimson Canopy", desc: "Bleeding leaves mend all warriors for +1.5 HP/s." } }),
+    S("Obsidian Wastes", "lava", "cinder", 1100, ["collector", "levy", "hound"], 1,
+      "Glass grows where the screaming stopped. Every shard holds the last face that saw it form.",
+      { hazard: { id: "lava", name: "Volcanic Fissures", desc: "Superheated ground scorches all combatants for 2 HP/s." } }),
     S("The Whispering Caves", "cobble", "oldstone", 1300, ["levy", "debt", "carrion"], 1,
       "The echoes repeat your name before you speak it. Some of them are still asking to be let out."),
     S("Sanguine Marshes", "mud", "moor", 1500, ["drowned", "collector", "levy", "debt"], 1,
-      "The water is red because it remembers. Your wife's name is written somewhere beneath the reeds."),
+      "The water is red because it remembers. Your wife's name is written somewhere beneath the reeds.",
+      { hazard: { id: "marsh", name: "Clinging Mire", desc: "Deep mud slows movement across the lane by 12%." } }),
     S("Abyssal Shore", "sand", "coastal", 1700, ["drowned", "inquisitor", "hound"], 1,
-      "Tides here pull inward, never out. The drowned stand in rows beneath the surface, still waiting to pay."),
+      "Tides here pull inward, never out. The drowned stand in rows beneath the surface, still waiting to pay.",
+      { midBoss: "drowned", midBossName: "The Drowned Warden", hazard: { id: "tide", name: "Inward Tide", desc: "The undertow pulls warriors +3 move speed toward the keep." } }),
     S("The Iron Fortress", "cobble", "oldstone", 2000, ["knight", "levy", "inquisitor", "golem"], 1,
-      "Iron walls, iron gates, iron men who sleep standing. Its foundations were mixed with the ash of the first rebellion."),
+      "Iron walls, iron gates, iron men who sleep standing. Its foundations were mixed with the ash of the first rebellion.",
+      { midBoss: "golem", midBossName: "Foundry Colossus", hazard: { id: "fort", name: "Keep Ballista", desc: "The keep fires a heavy iron bolt at your front warrior every 12s." } }),
     S("Shadow Peaks", "snow", "moor", 2200, ["hound", "carrion", "knight", "inquisitor"], 1,
-      "Snow falls black on the high passes. The hermits say the mountain is a grave the sky dug for itself."),
+      "Snow falls black on the high passes. The hermits say the mountain is a grave the sky dug for itself.",
+      { hazard: { id: "blizzard", name: "Black Blizzard", desc: "Blinding snow reduces ranged attack reach by 15%." } }),
     S("Ebon Plains", "dirt", "cinder", 2500, ["golem", "knight", "debt", "hound"], 1,
       "The grass bends toward the obelisk like worshippers. Those who lie down in it never stand back up the same."),
     S("Crimson Desert", "sand", "cinder", 2800, ["golem", "inquisitor", "drowned", "knight", "carrion"], 1,
-      "The dunes are made of red sand ground from old armies. Every storm buries a war and uncovers another."),
+      "The dunes are made of red sand ground from old armies. Every storm buries a war and uncovers another.",
+      { hazard: { id: "sandstorm", name: "Bone-Sand Gale", desc: "Scouring winds slow all attack speeds by 10%." } }),
     S("Spirit Vale — The Collector's Throne", "moss", "moor", 3500, ["knight", "golem", "inquisitor", "levy", "drowned"], 1,
       "The ghosts here kneel to no one but him. Tonight they will watch a king learn what a debt is.", { boss: "king" }),
   ];

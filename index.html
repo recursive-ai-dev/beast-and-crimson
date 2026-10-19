@@ -2,8 +2,9 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#120606">
+<meta name="description" content="Rally your tribe, awaken ancient runes, and bring down the Collector King's ten keeps. An offline dark fantasy lane battler.">
 <title>Beast and Crimson: Tribes</title>
 <link rel="stylesheet" href="style.css">
 </head>
@@ -52,19 +53,27 @@
     <div class="cine-bar top"></div>
     <div class="intro-stage"><canvas id="intro-canvas" width="240" height="135"></canvas></div>
     <div class="cine-bar bottom"><p class="subtitle"></p></div>
-    <button class="skip rune-btn" title="Skip">&#x16DF;</button>
+    <button class="skip rune-btn" title="Skip story" aria-label="Skip story">&#x16DF;</button>
   </section>
 
   <!-- Main menu -->
   <section id="menu" class="screen">
-    <canvas class="menu-bg" width="240" height="135"></canvas>
-    <h1 class="title">Beast <span>&amp;</span> Crimson</h1>
-    <p class="subtitle-line">Tribes</p>
-    <div class="slabs"></div>
-    <div class="menu-foot">
-      <button class="start-btn" disabled><span>Rise</span></button>
+    <div class="backdrop"><div class="art offense"></div><div class="art defense"></div><div class="art greed"></div></div>
+    <canvas class="menu-bg" width="480" height="270"></canvas>
+    <div class="vignette"></div>
+    <div class="menu-wrap">
+      <img class="crest" src="assets/art/crest.png" alt="" onerror="this.remove()">
+      <h1 class="title">Beast <span>&amp;</span> Crimson</h1>
+      <p class="subtitle-line">Tribes</p>
+      <p class="menu-kicker">Three tribes. One rebellion.</p>
+      <div class="slabs" role="group" aria-label="Choose your tribe"></div>
+      <div class="menu-foot">
+        <button class="start-btn" disabled><span>Rise</span></button>
+        <div class="hint"></div>
+      </div>
     </div>
-    <button class="gear corner" title="Settings"><svg class="vine"><use href="#vine-gear"/></svg></button>
+    <button class="gear corner" title="Settings" aria-label="Settings"><svg class="vine" aria-hidden="true"><use href="#vine-gear"/></svg></button>
+    <div class="menu-meta"><span>30 warriors <i>·</i> 10 keeps <i>·</i> One crown</span><span class="save-status" role="status"></span></div>
   </section>
 
   <!-- Campaign -->
@@ -73,10 +82,14 @@
     <header class="bar">
       <button class="stone-btn back">&#8592; Tribes</button>
       <h2 class="camp-title"></h2>
-      <button class="stone-btn warband-btn">Warband</button>
+      <div class="bar-btns">
+        <button class="stone-btn endless-btn">Endless</button>
+        <button class="stone-btn bestiary-btn">Ledger</button>
+        <button class="stone-btn warband-btn">Warband</button>
+      </div>
     </header>
-    <div class="missions"></div>
-    <div class="brief hidden"></div>
+    <div class="campaign-body"><div class="campaign-overview"></div><div class="missions" role="group" aria-label="Campaign stages"></div></div>
+    <div class="brief hidden" role="dialog" aria-modal="true" aria-label="Campaign briefing" tabindex="-1"></div>
   </section>
 
   <!-- Unit customization -->
@@ -86,6 +99,7 @@
       <h2>Warband</h2>
       <span class="lineup-count"></span>
     </header>
+    <div class="lineup-strip" role="group" aria-label="Your battle lineup"></div>
     <div class="wb-body">
       <div class="wb-list"></div>
       <div class="wb-display"><div class="scene-back"></div><div class="pedestal"></div><canvas width="96" height="96"></canvas><div class="wb-name"></div><button class="stone-btn scene-btn" title="Change the display">&#x16DF; Scene</button></div>
@@ -95,7 +109,7 @@
 
   <!-- Battle -->
   <section id="battle" class="screen">
-    <canvas id="battle-canvas" width="480" height="270"></canvas>
+    <canvas id="battle-canvas" width="480" height="270" aria-label="Battlefield. Use the deployment and ability buttons to command your warriors."></canvas>
     <div class="hud">
       <div class="hud-left">
         <div class="hp-bar"><div class="hp-end l"></div><div class="hp-liquid"></div><div class="hp-end r"></div><span class="hp-text"></span></div>
@@ -103,19 +117,28 @@
       </div>
       <div class="hud-mid"><div class="keep-bar"><div class="keep-fill"></div><span class="keep-name"></span></div></div>
       <div class="hud-right">
+        <button class="stone-btn speed-btn" title="Toggle battle speed (X)" aria-label="Battle speed: 1x. Press X to change.">1x</button>
         <div class="gold-slab"><span class="coin"></span><span class="gold-val">0</span><span class="chest"></span></div>
-        <button class="gear" title="Pause"><svg class="vine"><use href="#vine-gear"/></svg></button>
+        <button class="gear" title="Pause (Escape)" aria-label="Pause battle"><svg class="vine" aria-hidden="true"><use href="#vine-gear"/></svg></button>
       </div>
+      <div class="battle-status"><span class="battle-time">0:00</span><span class="cast-mode"></span></div>
+      <button class="spell-btn" title="Totem Spell (R)"><img class="px" alt=""><span class="cool"></span><span class="key">R</span><span class="spell-state"></span></button>
       <div class="unit-buttons"></div>
+      <aside class="battle-guide hidden" aria-label="Battle tutorial"><div class="guide-copy" aria-live="polite"></div><button class="guide-skip">Skip tutorial</button></aside>
+      <div class="surge-warning hidden" role="status"></div>
       <div class="objective parchment"></div>
-      <div class="toast"></div>
+      <div class="toast" role="status"></div>
     </div>
-    <div class="pause hidden">
+    <div class="pause hidden" role="dialog" aria-modal="true" aria-label="Battle paused" tabindex="-1">
       <div class="tablet">
         <h3>Paused</h3>
+        <p class="pause-summary"></p>
         <button class="molten resume">Resume</button>
         <button class="molten retreat">Retreat</button>
+        <fieldset class="audio-controls" data-audio-settings="pause"></fieldset>
         <label class="toggle"><input type="checkbox" class="autocast"> Auto-cast abilities</label>
+        <p class="tutorial-auto-note hidden">Manual casting is on for the tutorial. Your auto-cast setting resumes when it ends.</p>
+        <p class="pause-keys">1–5 Deploy · Q/W/E/A/S Cast<br>R Totem spell · X Speed · Esc Resume</p>
       </div>
     </div>
   </section>
@@ -125,38 +148,46 @@
     <div class="battlefield"><div class="mist-layer"></div><div class="mist-layer two"></div></div>
     <div class="beam"></div>
     <h2 class="result-title"></h2>
+    <p class="result-subtitle"></p>
     <div class="tablets"></div>
     <div class="rewards"></div>
+    <div class="warband-nudge"></div>
     <div class="result-buttons">
       <button class="stone-btn retry"><i class="glyph">&#x16B1;</i>Retry</button>
       <button class="stone-btn to-menu"><i class="glyph">&#x16DF;</i>Main Menu</button>
+      <button class="stone-btn manage-warband">Manage Warband</button>
       <button class="stone-btn next"><i class="glyph">&#x2191;</i>Next Stage</button>
     </div>
   </section>
 
   <!-- Settings -->
-  <div id="settings" class="modal hidden">
+  <div id="settings" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="settings-title" tabindex="-1">
     <div class="tablet">
-      <h3>Settings</h3>
-      <label class="toggle"><input type="checkbox" class="opt-sound"> Sound</label>
+      <div class="dialog-heading"><h3 id="settings-title">Settings</h3><button class="close-icon" aria-label="Close settings">×</button></div>
+      <fieldset class="audio-controls" data-audio-settings="settings"></fieldset>
       <label class="toggle"><input type="checkbox" class="opt-autocast"> Auto-cast abilities</label>
       <label class="toggle"><input type="checkbox" class="opt-narration"> Tribe narration</label>
       <label class="toggle"><input type="checkbox" class="opt-ambience"> Ambient sound</label>
+      <label class="setting-row">Motion <select class="opt-motion"><option value="system">Follow device</option><option value="reduced">Reduced</option><option value="full">Full</option></select></label>
+      <details class="controls-help"><summary>How to play &amp; controls</summary><p>Spend gold to deploy warriors. They advance and fight on their own. Cast their abilities when ready, and raze the keep before your Totem falls.</p><dl><dt>1–5</dt><dd>Deploy a warrior</dd><dt>Q / W / E / A / S</dt><dd>Cast a slot's ability</dd><dt>F</dt><dd>Cast any ready ability</dd><dt>R</dt><dd>Call your Totem spell</dd><dt>X</dt><dd>Switch 1× / 2× speed</dd><dt>Space / Esc</dt><dd>Pause or resume</dd><dt>Tab</dt><dd>Move between controls</dd></dl><p>On touch screens, use the portraits, Cast buttons, and Totem button. Auto-cast also uses your Totem spell.</p></details>
       <div class="ach-list"></div>
       <button class="molten replay-intro">Replay the story</button>
+      <button class="molten replay-tutorial">Replay the tutorial</button>
       <button class="molten reset">Erase all progress</button>
       <button class="molten close">Close</button>
+      <p class="save-status" role="status"></p>
     </div>
   </div>
-  <div id="confirm" class="modal hidden"><div class="confirm-box"><p></p><button class="yes">Yes</button><button class="no">No</button></div></div>
-  <div id="tooltip" class="hidden"></div>
+  <div id="confirm" class="modal hidden" role="alertdialog" aria-modal="true" aria-labelledby="confirm-message" tabindex="-1"><div class="confirm-box"><p id="confirm-message"></p><button class="yes">Confirm</button><button class="no">Cancel</button></div></div>
+  <div id="tooltip" class="hidden" role="tooltip"></div>
   <div id="curtain"></div>
-  <div id="rotate-hint">Turn your device sideways</div>
+  <div id="rotate-hint">A wider battlefield awaits in landscape.</div>
 </div>
 
 <script src="assets/manifest.js"></script>
 <script src="src/data.js"></script>
 <script src="src/core.js"></script>
+<script src="src/audio.js"></script>
 <script src="src/battle.js"></script>
 <script src="src/ui.js"></script>
 </body>

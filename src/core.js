@@ -8,35 +8,127 @@
   const DEFAULT = () => ({
     v: 1, tribe: null, seenIntro: false, nextId: 1,
     progress: { offense: 0, defense: 0, greed: 0 },
-    lineup: {}, burns: [], equipped: {},
-    settings: { sound: true, autocast: false, narration: true, ambience: true },
+    endless: { offense: 0, defense: 0, greed: 0 },
+    lineup: {}, burns: [], equipped: {}, ash: 0, bestiary: {}, newUnits: [],
+    tutorial: { battle: "deploy", burn: "equip" },
+    settings: { sound: true, masterVolume: 0.8, musicVolume: 0.55, effectsVolume: 0.8, ambienceVolume: 0.4, autocast: false, narration: true, ambience: true, speed: 1, motion: "system" },
     achievements: {},
   });
+  const record = v => v && typeof v === "object" && !Array.isArray(v) ? v : {};
+  const count = (v, max = Number.MAX_SAFE_INTEGER) => Number.isFinite(v) ? Math.max(0, Math.min(max, Math.floor(v))) : 0;
+  function normalizeSave(raw) {
+    const src = record(raw), out = DEFAULT();
+    out.tribe = Object.hasOwn(BC.TRIBES, src.tribe) ? src.tribe : null;
+    out.seenIntro = src.seenIntro === true;
+    for (const tribe of Object.keys(out.progress)) {
+      out.progress[tribe] = count(record(src.progress)[tribe], BC.STAGES.length);
+      out.endless[tribe] = count(record(src.endless)[tribe]);
+      const line = record(src.lineup)[tribe];
+      out.lineup[tribe] = Array.isArray(line) ? line.filter(n => typeof n === "string" && Object.hasOwn(BC.UNITS, n)) : [];
+    }
+    const settings = record(src.settings);
+    for (const key of ["sound", "autocast", "narration", "ambience"]) if (typeof settings[key] === "boolean") out.settings[key] = settings[key];
+    for (const key of ["masterVolume", "musicVolume", "effectsVolume", "ambienceVolume"]) {
+      if (Number.isFinite(settings[key])) out.settings[key] = Math.max(0, Math.min(1, settings[key]));
+    }
+    out.settings.speed = settings.speed === 2 ? 2 : 1;
+    out.settings.scene = settings.scene === 1 ? 1 : 0;
+    out.settings.motion = ["system", "reduced", "full"].includes(settings.motion) ? settings.motion : "system";
+    out.ash = count(src.ash);
+    const ids = new Set();
+    out.burns = (Array.isArray(src.burns) ? src.burns : []).filter(b => {
+      if (!b || !Number.isSafeInteger(b.id) || b.id < 1 || ids.has(b.id) || !Number.isInteger(b.tier) || b.tier < 0 || b.tier > 6) return false;
+      if (!Object.hasOwn(BC.BURN_STATS, b.buff) || !Object.hasOwn(BC.BURN_STATS, b.debuff) || b.buff === b.debuff) return false;
+      if (![b.up, b.down].every(n => Number.isFinite(n) && n > 0 && n < 100)) return false;
+      ids.add(b.id);
+      return true;
+    }).map(({ id, tier, buff, up, debuff, down }) => ({ id, tier, buff, up, debuff, down }));
+    out.nextId = out.burns.reduce((max, b) => Math.max(max, b.id + 1), Math.max(1, count(src.nextId)));
+    const equipped = new Set();
+    for (const [name, id] of Object.entries(record(src.equipped))) if (Object.hasOwn(BC.UNITS, name) && ids.has(id) && !equipped.has(id)) {
+      out.equipped[name] = id; equipped.add(id);
+    }
+    for (const key of Object.keys(BC.ENEMIES)) out.bestiary[key] = count(record(src.bestiary)[key]);
+    for (const key of Object.keys(BC.ACHIEVEMENTS)) if (record(src.achievements)[key]) out.achievements[key] = count(src.achievements[key]) || 1;
+    out.newUnits = [...new Set((Array.isArray(src.newUnits) ? src.newUnits : []).filter(n => typeof n === "string" && Object.hasOwn(BC.UNITS, n)))];
+    const tutorial = record(src.tutorial);
+    if (["deploy", "ability", "spell", "done", "skipped"].includes(tutorial.battle)) out.tutorial.battle = tutorial.battle;
+    else if (Object.values(out.progress).some(n => n > 0) || Object.values(out.endless).some(n => n > 0)) out.tutorial.battle = "done";
+    if (["equip", "done", "skipped"].includes(tutorial.burn)) out.tutorial.burn = tutorial.burn;
+    else if (equipped.size) out.tutorial.burn = "done";
+    return out;
+  }
   let save;
-  try { save = Object.assign(DEFAULT(), JSON.parse(localStorage.getItem(KEY) || "{}")); }
-  catch (e) { save = DEFAULT(); }
-  save.settings = Object.assign(DEFAULT().settings, save.settings);
-  save.achievements = save.achievements || {};
-  const persist = () => { try { localStorage.setItem(KEY, JSON.stringify(save)); } catch (e) { /* private mode */ } };
+  BC.saveStatus = "ready";
+  try {
+    const stored = JSON.parse(localStorage.getItem(KEY) || "{}");
+    save = normalizeSave(stored);
+  }
+  catch (e) { save = DEFAULT(); BC.saveStatus = e instanceof SyntaxError ? "recovered" : "unavailable"; }
+  const persist = () => {
+    try { localStorage.setItem(KEY, JSON.stringify(save)); BC.saveStatus = "saved"; }
+    catch (e) { BC.saveStatus = "unavailable"; }
+    if (typeof window.CustomEvent === "function") window.dispatchEvent(new CustomEvent("bc-save", { detail: BC.saveStatus }));
+  };
   const resetSave = () => { save = DEFAULT(); BC.save = save; persist(); };
 
   const tribeUnits = (tribe) => Object.keys(BC.UNITS).filter(n => BC.UNITS[n].tribe === tribe);
   const unlockedUnits = (tribe) => tribeUnits(tribe).slice(0, Math.min(10, 3 + save.progress[tribe]));
+  const mercenaryUnits = (tribe) => ["offense", "defense", "greed"].filter(t => t !== tribe).flatMap(t => unlockedUnits(t));
   const lineup = (tribe) => {
-    const ok = unlockedUnits(tribe);
-    let l = (save.lineup[tribe] || []).filter(n => ok.includes(n));
+    const ok = unlockedUnits(tribe), mercs = mercenaryUnits(tribe);
+    let hasMerc = false;
+    const seen = new Set();
+    let l = (Array.isArray(save.lineup[tribe]) ? save.lineup[tribe] : []).filter(n => {
+      if (seen.has(n) || seen.size >= 5) return false;
+      if (!ok.includes(n) && !mercs.includes(n)) return false;
+      if (mercs.includes(n) && hasMerc) return false;
+      seen.add(n);
+      if (ok.includes(n)) return true;
+      if (!hasMerc && mercs.includes(n)) { hasMerc = true; return true; }
+      return false;
+    });
     if (!l.length) l = ok.slice(0, 5);
     save.lineup[tribe] = l;
     return l;
   };
+
+  function addToLineup(tribe, name) {
+    const l = lineup(tribe), own = unlockedUnits(tribe), mercs = mercenaryUnits(tribe);
+    if (l.length >= 5 || l.includes(name)) return false;
+    if (!own.includes(name) && (!mercs.includes(name) || l.some(n => mercs.includes(n)))) return false;
+    l.push(name);
+    save.newUnits = save.newUnits.filter(n => n !== name);
+    persist();
+    return true;
+  }
+
+  function fillLineup(tribe) {
+    const added = [];
+    for (const name of unlockedUnits(tribe)) if (addToLineup(tribe, name)) added.push(name);
+    return added;
+  }
+
+  function advanceTutorial(action) {
+    if (action === "equip" && save.tutorial.burn === "equip") save.tutorial.burn = "done";
+    else {
+      const next = { deploy: "ability", ability: "spell", spell: "done" };
+      if (save.tutorial.battle !== action || !next[action]) return false;
+      save.tutorial.battle = next[action];
+    }
+    persist();
+    return true;
+  }
+  function skipTutorial() { save.tutorial = { battle: "skipped", burn: "skipped" }; persist(); }
+  function resetTutorial() { save.tutorial = DEFAULT().tutorial; persist(); }
 
   // --------------------------------------------------------- runic burns --
   function makeBurn(tier, rand) {
     rand = rand || Math.random;
     const keys = Object.keys(BC.BURN_STATS);
     const buff = keys[Math.floor(rand() * keys.length)];
-    let debuff = buff;
-    while (debuff === buff) debuff = keys[Math.floor(rand() * keys.length)];
+    const other = keys.filter(k => k !== buff);
+    const debuff = other[Math.floor(rand() * other.length)];
     const u = BC.BURN_STATS[buff].up, d = BC.BURN_STATS[debuff].down;
     const up = (u[0] + rand() * (u[1] - u[0])) * BC.TIER_UP[tier];
     const down = (d[0] + rand() * (d[1] - d[0])) * BC.TIER_DOWN[tier];
@@ -81,6 +173,45 @@
     return { up: upTxt, down: dnTxt };
   };
 
+  function salvageBurn(id) {
+    const idx = save.burns.findIndex(b => b.id === id);
+    if (idx < 0) return 0;
+    const b = save.burns[idx];
+    const ash = (b.tier + 1) * 2;
+    save.burns.splice(idx, 1);
+    for (const k of Object.keys(save.equipped)) if (save.equipped[k] === id) delete save.equipped[k];
+    save.ash = (save.ash || 0) + ash;
+    persist();
+    return ash;
+  }
+
+  function fuseBurns(tier, rand) {
+    if (!Number.isInteger(tier) || tier < 0 || tier >= 5) return null;
+    const eqIds = new Set(Object.values(save.equipped));
+    const pool = save.burns.filter(b => b.tier === tier && !eqIds.has(b.id));
+    if (pool.length < 3) return null;
+    const drop = new Set(pool.slice(0, 3).map(b => b.id));
+    save.burns = save.burns.filter(b => !drop.has(b.id));
+    for (const k of Object.keys(save.equipped)) if (drop.has(save.equipped[k])) delete save.equipped[k];
+    const forged = makeBurn(tier + 1, rand);
+    save.burns.push(forged);
+    persist();
+    return forged;
+  }
+
+  function rerollBurn(id, rand) {
+    const b = save.burns.find(x => x.id === id);
+    if (!b) return false;
+    const cost = (b.tier + 1) * 3;
+    if ((save.ash || 0) < cost) return false;
+    save.ash -= cost;
+    const fresh = makeBurn(b.tier, rand);
+    save.nextId--;
+    Object.assign(b, { buff: fresh.buff, up: fresh.up, debuff: fresh.debuff, down: fresh.down });
+    persist();
+    return true;
+  }
+
   // -------------------------------------------------------------- assets --
   const images = {};
   function loadAssets(onProgress) {
@@ -96,6 +227,17 @@
       im.onload = im.onerror = () => { images[key] = im; done++; onProgress && onProgress(done / jobs.length); res(); };
       im.src = src;
     })));
+  }
+  const stageLoads = new Map();
+  function loadStageArt(index) {
+    index %= BC.STAGES.length;
+    if (!stageLoads.has(index)) stageLoads.set(index, new Promise(resolve => {
+      const im = new Image();
+      im.onload = () => { images["stage:" + index] = im; resolve(im); };
+      im.onerror = () => resolve(null);
+      im.src = `assets/art/stage-${String(index + 1).padStart(2, "0")}.png`;
+    }));
+    return stageLoads.get(index);
   }
 
   /** Draw one 32px (or `cell`) frame of a strip. */
@@ -126,17 +268,7 @@
   }
 
   // --------------------------------------------------------------- audio --
-  let actx = null;
-  const ac = () => {
-    if (!save.settings.sound) return null;
-    if (!actx) { try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return null; } }
-    if (actx.state === "suspended") actx.resume();
-    return actx;
-  };
-  // Browsers keep audio suspended until a gesture; wake it (and the ambience) on the first one.
-  const wake = () => { if (actx && actx.state === "suspended") actx.resume(); };
-  addEventListener("pointerdown", wake);
-  addEventListener("keydown", wake);
+  const ac = () => BC.audio?.context();
   function tone(freq, dur, type, vol, slide, when) {
     const a = ac(); if (!a) return;
     const t = a.currentTime + (when || 0);
@@ -146,10 +278,10 @@
     if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(20, freq * slide), t + dur);
     g.gain.setValueAtTime(vol || 0.2, t);
     g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    o.connect(g).connect(a.destination);
+    o.connect(g).connect(BC.audio.output("effects"));
     o.start(t); o.stop(t + dur + 0.02);
   }
-  function noise(dur, vol, when, hp) {
+  function noise(dur, vol, when, hp, output) {
     const a = ac(); if (!a) return;
     const t = a.currentTime + (when || 0);
     const buf = a.createBuffer(1, Math.floor(a.sampleRate * dur), a.sampleRate);
@@ -158,7 +290,7 @@
     const s = a.createBufferSource(), g = a.createGain(), f = a.createBiquadFilter();
     f.type = "highpass"; f.frequency.value = hp || 800;
     s.buffer = buf; g.gain.value = vol || 0.15;
-    s.connect(f).connect(g).connect(a.destination);
+    s.connect(f).connect(g).connect(output || BC.audio.output("effects"));
     s.start(t);
   }
   const sfx = {
@@ -178,6 +310,7 @@
   // Tribe ambience (BC Main Menu: "ambient sounds that match the tribe's aesthetic").
   let amb = null;
   function ambience(tribe) {
+    if (document.hidden || !save.settings.sound || !save.settings.ambience || !save.settings.masterVolume || !save.settings.ambienceVolume) tribe = null;
     if (amb && amb.tribe === tribe) return;
     if (amb) { amb.stop(); amb = null; }
     if (!tribe || !save.settings.ambience) return;
@@ -185,7 +318,7 @@
     const out = a.createGain();
     out.gain.setValueAtTime(0.0001, a.currentTime);
     out.gain.exponentialRampToValueAtTime(0.5, a.currentTime + 2);
-    out.connect(a.destination);
+    out.connect(BC.audio.output("ambient"));
     const nodes = [], timers = [];
     const loopNoise = (type, freq, q, vol) => {
       const len = a.sampleRate * 4, buf = a.createBuffer(1, len, a.sampleRate), d = buf.getChannelData(0);
@@ -215,7 +348,7 @@
     }, every));
     if (tribe === "offense") {          // fire pits: low roar + crackle
       loopNoise("lowpass", 300, 0.7, 0.35); drone(49, 0.05);
-      timers.push(setInterval(() => { if (Math.random() < 0.6) noise(0.03, 0.05 + Math.random() * 0.05, 0, 2500); }, 140));
+      timers.push(setInterval(() => { if (Math.random() < 0.6) noise(0.03, 0.05 + Math.random() * 0.05, 0, 2500, out); }, 140));
     } else if (tribe === "defense") {   // river through the forest + wind
       loopNoise("bandpass", 900, 0.6, 0.25);
       const wind = loopNoise("bandpass", 400, 3, 0.12);
@@ -228,25 +361,35 @@
     }
     amb = { tribe, stop: () => {
       timers.forEach(clearInterval);
+      out.gain.cancelScheduledValues(a.currentTime);
       out.gain.setTargetAtTime(0.0001, a.currentTime, 0.4);
       setTimeout(() => { nodes.forEach(n => { try { n.stop(); } catch (e) { /* already */ } }); out.disconnect(); }, 1500);
     } };
   }
-
   // Tribe narration: a guttural, whispering voice that warns rather than describes.
+  let utterance = null;
+  function cancelNarration() {
+    utterance = null;
+    if (window.speechSynthesis) speechSynthesis.cancel();
+    BC.audio?.duckNarration(false);
+  }
   function narrate(text) {
-    if (!save.settings.narration || !window.speechSynthesis) return;
-    speechSynthesis.cancel();
+    if (document.hidden || !save.settings.sound || !save.settings.masterVolume || !save.settings.narration || !window.speechSynthesis) return;
+    cancelNarration();
     const u = new SpeechSynthesisUtterance(text);
+    utterance = u;
     const voices = speechSynthesis.getVoices();
     u.voice = voices.find(v => /male|daniel|fred|david|george/i.test(v.name) && /^en/i.test(v.lang)) || voices.find(v => /^en/i.test(v.lang)) || null;
-    u.pitch = 0.1; u.rate = 0.72; u.volume = 0.9;
+    u.pitch = 0.1; u.rate = 0.72; u.volume = 0.9 * save.settings.masterVolume;
+    u.onstart = () => { if (utterance === u) BC.audio?.duckNarration(true); };
+    u.onend = u.onerror = () => { if (utterance === u) { utterance = null; BC.audio?.duckNarration(false); } };
     speechSynthesis.speak(u);
   }
 
   Object.assign(BC, {
-    save, persist, resetSave, tribeUnits, unlockedUnits, lineup,
-    makeBurn, rollTier, unitStats, burnText,
-    images, loadAssets, drawFrame, iconURL, sfx, ambience, narrate,
+    save, persist, resetSave, normalizeSave, tribeUnits, unlockedUnits, mercenaryUnits, lineup, addToLineup, fillLineup,
+    advanceTutorial, skipTutorial, resetTutorial,
+    makeBurn, rollTier, unitStats, burnText, salvageBurn, fuseBurns, rerollBurn,
+    images, loadAssets, loadStageArt, drawFrame, iconURL, sfx, ambience, narrate, cancelNarration,
   });
 })();
