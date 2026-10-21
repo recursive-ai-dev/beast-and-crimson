@@ -15,10 +15,11 @@
       bgScene: "pits",
       spell: {
         name: "Blood Sacrifice", cd: 28,
-        desc: "Spill 8% of the Totem's current life: all deployed warriors gain +35% damage and +35% attack speed for 6s.",
+        desc: "Spill 8% of the Totem's current life: all deployed warriors gain +35% damage and +35% attack speed for 6s. Requires at least 35% Totem health and a deployed warrior.",
+        unavailable: (B) => !B.alliesNear(240, 500).length ? "Deploy a warrior first" : B.player.hp < B.player.max * 0.35 ? "Requires at least 35% Totem health" : "",
         run: (B) => {
           const allies = B.alliesNear(240, 500);
-          if (!allies.length || B.player.hp < B.player.max * 0.35) return false;
+          if (B.tribe.spell.unavailable(B)) return false;
           B.player.hp = Math.max(1, B.player.hp * 0.92);
           B.player.flash = 0.25;
           allies.forEach(a => { B.buff(a, "dmg", 1.35, 6); B.buff(a, "atkspd", 1.35, 6); B.impact(a, a); });
@@ -119,7 +120,7 @@
     "Ritualist": U("defense", "Blood Rite", [140, 150, 21, 6, 0.8, 18, 60, 30, 14, 0],
       { name: "Blood Rite", desc: "Spills 25% of its own life: allies nearby deal +40% damage for 6s.", run: (B, u) => { B.hurtSelf(u, u.hp * 0.25); B.alliesNear(u.x, 120).forEach(a => { B.buff(a, "dmg", 1.4, 6); B.impact(u, a); }); } }),
     "Spirit Guardian": U("defense", "Reviver", [220, 180, 12, 10, 0.7, 16, 50, 0, 25, 1],
-      { name: "Resurrection", desc: "Calls the most recently fallen ally back at 60% life.", run: (B, u) => { const r = B.revive(u, 0.6); if (!r) return false; B.impact(u, r); } }),
+      { name: "Resurrection", desc: "Calls the most recently fallen ally back at 60% life.", unavailable: "No fallen ally to revive", run: (B, u) => { const r = B.revive(u, 0.6); if (!r) return false; B.impact(u, r); } }),
 
     // ---- OFFENSE (Bloodfang) ----------------------------------------------
     "Beast Berserker": U("offense", "Bruiser", [80, 200, 24, 4, 1.1, 34, 22, 20, 10, 0.5],

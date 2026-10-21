@@ -40,7 +40,7 @@
       [...screen.children].forEach(child => { child.inert = !!(top && screen.contains(top) && !child.contains(top)); });
     });
     dialogs.forEach(({ el }) => { el.inert = el !== top; });
-    $("#tooltip").classList.add("hidden");
+    hideTip();
   }
   function openDialog(el, dismiss, focus = "button:not(:disabled), input, select, summary") {
     if (dialogs.some(d => d.el === el)) return;
@@ -134,19 +134,70 @@
   }
 
   // tooltips
-  const showTip = (e) => {
-    const el = e.target.closest("[data-tip]");
+  let tipTarget = null, tipPinned = false, tipFeedback = "";
+  function hideTip() {
+    tipPinned = false;
+    tipFeedback = "";
+    $("#tooltip").classList.add("hidden");
+    if (tipTarget) {
+      const ids = (tipTarget.getAttribute("aria-describedby") || "").split(/\s+/).filter(id => id && id !== "tooltip");
+      if (ids.length) tipTarget.setAttribute("aria-describedby", ids.join(" "));
+      else tipTarget.removeAttribute("aria-describedby");
+      tipTarget = null;
+    }
+  }
+  const unitTip = (name, tribe, stats = BC.unitStats(name, tribe), cost = stats.cost) => {
+    const unit = BC.UNITS[name];
+    return [
+      `${name} · ${unit.role}`,
+      unit.tribe !== tribe ? `${BC.TRIBES[unit.tribe].name} mercenary` : null,
+      `Cost: ${Math.round(cost)} gold`,
+      `Health: ${Math.round(stats.hp)} · Damage: ${Math.round(stats.dmg)} · Defense: ${Math.round(stats.def)}`,
+      `${unit.ability.name} · ${stats.abspd.toFixed(1)}s cooldown`,
+      unit.ability.desc,
+    ].filter(Boolean).join("\n");
+  };
+  const showTip = (e, pin = false) => {
+    if (tipPinned && e.type === "pointerover") return;
+    const el = e.target?.closest("[data-tip]");
     const tt = $("#tooltip");
-    if (!el || e.pointerType === "touch") { tt.classList.add("hidden"); return; }
-    tt.textContent = el.dataset.tip;
+    if (!el || !el.isConnected || el.closest("[inert]") || !el.getClientRects().length) { hideTip(); return; }
+    if (e.pointerType === "touch" && !pin) return;
+    if (tipTarget !== el) {
+      hideTip();
+      tipTarget = el;
+      el.setAttribute("aria-describedby", [el.getAttribute("aria-describedby"), "tooltip"].filter(Boolean).join(" "));
+    }
+    tipPinned = tipPinned || pin;
+    if ("feedback" in e) tipFeedback = e.feedback;
+    tt.textContent = (tipFeedback ? `Last attempt: ${tipFeedback}\n\n` : "") + el.dataset.tip;
     tt.classList.remove("hidden");
     const r = el.getBoundingClientRect();
+    // Cast details must sit above the whole command area, including portraits
+    // and the Totem on portrait phones, rather than covering another action.
+    const commandTop = el.closest(".unit-slot, .spell-btn")
+      ? Math.min(...[...document.querySelectorAll("#battle .unit-buttons, #battle .spell-btn, #battle .objective")].map(control => control.getBoundingClientRect().top))
+      : r.top;
     tt.style.left = Math.max(8, Math.min(innerWidth - tt.offsetWidth - 8, r.left)) + "px";
-    tt.style.top = (r.top > tt.offsetHeight + 10 ? r.top - tt.offsetHeight - 6 : Math.min(innerHeight - tt.offsetHeight - 8, r.bottom + 6)) + "px";
+    tt.style.top = Math.max(8, Math.min(innerHeight - tt.offsetHeight - 8, commandTop > tt.offsetHeight + 10 ? commandTop - tt.offsetHeight - 6 : r.bottom + 6)) + "px";
+  };
+  const updateTip = (el, text) => {
+    if (el.dataset.tip === text) return;
+    el.dataset.tip = text;
+    if (tipTarget === el) showTip({ target: el });
   };
   document.addEventListener("pointerover", showTip);
   document.addEventListener("focusin", showTip);
-  for (const event of ["pointerdown", "focusout", "scroll"]) document.addEventListener(event, () => $("#tooltip").classList.add("hidden"), true);
+  document.addEventListener("pointerout", e => {
+    if (!tipPinned && tipTarget?.contains(e.target) && !tipTarget.contains(e.relatedTarget)) hideTip();
+  });
+  document.addEventListener("keydown", e => { if (e.key === "Escape") hideTip(); });
+  document.addEventListener("focusout", () => { if (!tipPinned) hideTip(); }, true);
+  document.addEventListener("pointerdown", hideTip, true);
+  document.addEventListener("scroll", e => {
+    if (e.target === document || e.target.contains?.(tipTarget)) hideTip();
+  }, true);
+  addEventListener("resize", hideTip);
 
   // -------------------------------------------------------------- loading --
   function boot() {
@@ -495,42 +546,45 @@
       $("#warband .lineup-count").textContent = `${line.length}/5 ready · ${curMerc ? "Pact sworn" : "1 mercenary slot"}`;
       const list = $("#warband .wb-list");
       list.innerHTML = "";
-      const selectUnit = (name) => {
+      const selectUnit = (name, source) => {
         wbSel = name;
         S().newUnits = S().newUnits.filter(n => n !== name);
         BC.persist(); BC.sfx.click(); render();
         $("#warband .wb-info").scrollTop = 0;
+        // Rendering replaces the cards. Anchor the selection tip to the new card.
+        const selector = source.classList.contains("lineup-member") ? ".lineup-member" : ".wb-unit";
+        const selected = [...$("#warband").querySelectorAll(selector)].find(el => el.dataset.name === name);
+        showTip({ target: selected }, true);
       };
       $("#warband .lineup-strip").replaceChildren(
         h("div", { class: "lineup-label" }, h("span", { class: "eyebrow" }, "Battle lineup"), h("span", {}, "Choose a slot to inspect")),
         ...Array.from({ length: 5 }, (_, i) => {
           const name = line[i];
-          return name ? h("button", { class: "lineup-member" + (name === wbSel ? " selected" : ""), "data-name": name, "aria-label": `Slot ${i + 1}: ${name}. Inspect warrior`, onclick: () => selectUnit(name) },
+          return name ? h("button", { class: "lineup-member" + (name === wbSel ? " selected" : ""), "data-name": name, "data-tip": unitTip(name, tribe), "aria-label": `Slot ${i + 1}: ${name}. Inspect warrior`, onclick: e => selectUnit(name, e.currentTarget) },
             h("span", { class: "slot-number" }, i + 1), h("img", { class: "px", alt: "", src: BC.iconURL("units:" + name, 0, 40) }), h("span", {}, name))
             : h("div", { class: "lineup-member empty" }, h("span", { class: "slot-number" }, i + 1), h("span", {}, "Open slot"));
         }));
       all.forEach((name, i) => {
         const ok = unlocked.includes(name);
         const burn = S().burns.find(b => b.id === S().equipped[name]);
-        const el = h("button", { class: `wb-unit ${name === wbSel ? "sel" : ""} ${line.includes(name) ? "in-line" : ""} ${ok ? "" : "locked"}`, disabled: !ok, "aria-pressed": String(name === wbSel), "data-name": name, "data-tip": ok ? name : `Unlocks after stage ${i - 2}` },
+        const el = h("button", { class: `wb-unit ${name === wbSel ? "sel" : ""} ${line.includes(name) ? "in-line" : ""} ${ok ? "" : "locked"}`, disabled: !ok, "aria-pressed": String(name === wbSel), "data-name": name, "data-tip": ok ? unitTip(name, tribe) : `Unlocks after stage ${i - 2}` },
           h("img", { class: "px", alt: "", src: BC.iconURL("units:" + name, 0, 64) }),
           S().newUnits.includes(name) ? h("span", { class: "new-badge" }, "New") : null,
           burn ? h("span", { class: "burn-dot", style: `background:${BC.BURN_TIERS[burn.tier].color};color:${BC.BURN_TIERS[burn.tier].color}` }) : null,
           ok ? name : "???");
-        if (ok) el.onclick = () => selectUnit(name);
+        if (ok) el.onclick = e => selectUnit(name, e.currentTarget);
         list.append(el);
       });
       if (mercs.length) {
         list.append(h("div", { class: "wb-sec", "data-tip": "Up to 1 warrior from another tribe may join your warband" }, "Mercenary Pact (Max 1)"));
         mercs.forEach((name) => {
-          const ut = BC.UNITS[name].tribe;
           const burn = S().burns.find(b => b.id === S().equipped[name]);
-          const el = h("button", { class: `wb-unit merc ${name === wbSel ? "sel" : ""} ${line.includes(name) ? "in-line" : ""}`, "aria-pressed": String(name === wbSel), "data-name": name, "data-tip": `${name} (${BC.TRIBES[ut].name} Mercenary)` },
+          const el = h("button", { class: `wb-unit merc ${name === wbSel ? "sel" : ""} ${line.includes(name) ? "in-line" : ""}`, "aria-pressed": String(name === wbSel), "data-name": name, "data-tip": unitTip(name, tribe) },
             h("img", { class: "px", alt: "", src: BC.iconURL("units:" + name, 0, 64) }),
             S().newUnits.includes(name) ? h("span", { class: "new-badge" }, "New") : null,
             burn ? h("span", { class: "burn-dot", style: `background:${BC.BURN_TIERS[burn.tier].color};color:${BC.BURN_TIERS[burn.tier].color}` }) : null,
             name);
-          el.onclick = () => selectUnit(name);
+          el.onclick = e => selectUnit(name, e.currentTarget);
           list.append(el);
         });
       }
@@ -695,6 +749,18 @@
     toastEl.textContent = "";
     let toastT = null;
     const toast = (msg) => { toastEl.textContent = msg; toastEl.classList.add("show"); clearTimeout(toastT); toastT = setTimeout(() => toastEl.classList.remove("show"), 1800); };
+    const command = (button, action) => {
+      if (!battle || battle.paused || battle.over) return;
+      const ok = action();
+      // Keep failure feedback readable even when the details cover the toast.
+      showTip({ target: button, feedback: ok ? "" : toastEl.textContent }, true);
+    };
+    const hazard = $(".battle-hazard", hud), arrival = $(".arrival-warning", hud);
+    let arrivalUntil = 0;
+    arrival.textContent = "";
+    arrival.classList.add("hidden");
+    const announce = msg => { arrival.textContent = msg; arrivalUntil = performance.now() + 5000; };
+    hazard.onclick = () => showTip({ target: hazard }, true);
     $(".keep-name", hud).textContent = lastEndless ? "The Endless Levy — Wave 1" : st.name;
     $(".objective", hud).textContent = lastEndless ? "Survive the waves. Raze keeps to mend." : (st.boss ? "Slay the Collector King. Raze his throne." : "Raze the enemy keep.");
 
@@ -702,7 +768,7 @@
     $("img", spBtn).src = BC.iconURL("bases:" + tribe, 0, 64);
     spBtn.dataset.tip = `${T.spell.name} (Key R / Tap Totem, ${T.spell.cd}s CD) — ${T.spell.desc}`;
     spBtn.setAttribute("aria-label", `${T.spell.name} — Totem spell (R)`);
-    spBtn.onclick = () => battle && battle.castSpell(false);
+    spBtn.onclick = () => command(spBtn, () => battle.castSpell(false));
 
     const spdBtn = $(".speed-btn", hud);
     const applySpeed = (spd) => {
@@ -718,11 +784,18 @@
 
     const btnWrap = $(".unit-buttons", hud);
     btnWrap.innerHTML = "";
+    // Unavailable actions stay focusable so their requirements can be inspected.
+    // The battle validates every action before changing state.
+    const inspectUnit = e => {
+      const button = e.target.closest(".ubtn, .cast-btn, .unit-slot");
+      if (button && battle && !battle.paused && !battle.over) showTip({ target: button }, true);
+    };
+    btnWrap.addEventListener("click", inspectUnit);
     const castBtns = [];
     const btns = line.map((name, i) => {
       const ability = BC.UNITS[name].ability;
-      const b = h("button", { class: "ubtn", "aria-label": `Deploy ${name} (${i + 1})`, "data-tip": `${name} [Deploy: ${i + 1}] — ${ability.name}: ${ability.desc}`,
-        onclick: () => battle && battle.deploy(i) },
+      const b = h("button", { class: "ubtn", "aria-label": `Deploy ${name} (${i + 1})`, "data-tip": `${unitTip(name, tribe)}\nDeploy: ${i + 1} · Cast: ${AB_KEYS[i]}`,
+        onclick: () => command(b, () => battle.deploy(i)) },
         h("span", { class: "key" }, i + 1),
         h("img", { class: "px", alt: "", src: BC.iconURL("units:" + name, 0, 64) }),
         h("span", { class: "cost" }), h("span", { class: "cool" }), h("span", { class: "deploy-cd" }),
@@ -732,10 +805,10 @@
           return h("span", { style: `left:${50 + Math.cos(a) * r}%;top:${44 + Math.sin(a) * r}%;transform:translate(-50%,-50%) rotate(${a}rad);opacity:0` }, RUNES[(k * 5 + i * 3) % RUNES.length]);
         })));
       const cast = h("button", { class: "cast-btn", "aria-label": `Cast ${ability.name} (${AB_KEYS[i]})`, "data-tip": `${ability.name} — ${ability.desc}`,
-        onclick: () => battle && battle.castBySlot(i) },
+        onclick: () => command(cast, () => battle.castBySlot(i)) },
         h("span", { class: "cast-label" }, `Cast · ${AB_KEYS[i]}`), h("span", { class: "cast-state" }, "Deploy first"));
       castBtns.push(cast);
-      btnWrap.append(h("div", { class: "unit-slot" }, h("span", { class: "unit-caption", "aria-hidden": "true" }, name), b, cast));
+      btnWrap.append(h("div", { class: "unit-slot", "data-tip": b.dataset.tip }, h("span", { class: "unit-caption", "aria-hidden": "true" }, name), b, cast));
       return b;
     });
     const pause = $("#battle .pause");
@@ -788,7 +861,7 @@
     let hudTick = 0;
     battle = new BC.Battle($("#battle-canvas"), {
       tribe, stage: lastStage, endless: lastEndless, lineup: line,
-      autocast: !guiding && S().settings.autocast, speed: S().settings.speed || 1, toast,
+      autocast: !guiding && S().settings.autocast, speed: S().settings.speed || 1, toast, announce,
       onEnd: (r) => endBattle(r),
       onAction: (action, B) => {
         if (guiding && BC.advanceTutorial(action)) {
@@ -811,10 +884,23 @@
         $(".keep-name", hud).title = `${B.stage.name} · ${Math.max(0, Math.ceil(B.enemy.hp))} / ${B.enemy.max} HP`;
         if (B.endless) $(".keep-name", hud).textContent = B.stage.name;
         const spK = B.player.spellCd / T.spell.cd;
+        const spellReason = T.spell.unavailable?.(B);
+        const spellState = B.player.spellCd > 0 ? `Ready in ${Math.ceil(B.player.spellCd)}s` : spellReason || "Ready";
         $(".cool", spBtn).style.setProperty("--cd", (spK * 100) + "%");
         spBtn.classList.toggle("cooling", B.player.spellCd > 0);
-        $(".spell-state", spBtn).textContent = B.player.spellCd > 0 ? Math.ceil(B.player.spellCd) + "s" : "Ready";
-        spBtn.disabled = B.paused || B.over || B.player.spellCd > 0;
+        $(".spell-state", spBtn).textContent = B.player.spellCd > 0 ? Math.ceil(B.player.spellCd) + "s" : spellReason ? "Blocked" : "Ready";
+        spBtn.disabled = B.paused || B.over;
+        spBtn.setAttribute("aria-disabled", String(spBtn.disabled || B.player.spellCd > 0 || !!spellReason));
+        spBtn.setAttribute("aria-label", `${T.spell.name} (R). ${spellState}`);
+        updateTip(spBtn, `${T.spell.name} · ${spellState}\n${T.spell.desc}\nCast: R / Tap Totem`);
+        const hz = B.stage.hazard;
+        hazard.classList.toggle("hidden", !hz || B.paused || B.over);
+        if (hazard.classList.contains("hidden") && tipTarget === hazard) hideTip();
+        if (hz) {
+          if (hazard.textContent !== hz.name) hazard.textContent = hz.name;
+          updateTip(hazard, `Biome hazard: ${hz.name}\n${hz.desc}`);
+        }
+        arrival.classList.toggle("hidden", !arrivalUntil || performance.now() >= arrivalUntil || B.paused || B.over);
         const warning = $(".surge-warning", hud);
         warning.classList.toggle("hidden", B.surgeT > 5 || B.paused || B.over);
         const warningText = `Enemy surge in ${Math.ceil(B.surgeT)}s`;
@@ -828,17 +914,32 @@
         }
         B.slots.forEach((s, i) => {
           const cost = B.costOf(s), cdMax = 1.5 + s.stats.cost / 45;
-          $(".cost", btns[i]).textContent = cost;
+          const costLabel = $(".cost", btns[i]);
+          if (costLabel.textContent !== String(cost)) costLabel.textContent = cost;
+          const shortfall = Math.max(0, Math.ceil(cost - B.gold));
+          const deployState = s.cd > 0 ? `Deploy again in ${Math.ceil(s.cd)}s` : shortfall ? `Need ${shortfall} more gold` : "Ready to deploy";
+          const detail = `${unitTip(s.name, tribe, s.stats, cost)}\n${deployState}\nDeploy: ${i + 1} · Cast: ${AB_KEYS[i]}`;
+          updateTip(btns[i], detail);
+          updateTip(btns[i].parentElement, detail);
           const k = s.cd / cdMax;
           $(".cool", btns[i]).style.setProperty("--cd", (k * 100) + "%");
           const runes = btns[i].querySelectorAll(".spiral span");
           runes.forEach((r, j) => { r.style.opacity = Math.max(0, Math.min(1, k * runes.length - j)).toFixed(2); });
           btns[i].classList.toggle("poor", B.gold < cost);
-          $(".deploy-cd", btns[i]).textContent = s.cd > 0 ? Math.ceil(s.cd) + "s" : "";
-          btns[i].disabled = B.paused || B.over || s.cd > 0 || B.gold < cost;
+          const deployLabel = $(".deploy-cd", btns[i]);
+          deployLabel.textContent = s.cd > 0 ? Math.ceil(s.cd) + "s" : shortfall ? `Need ${shortfall}g` : "";
+          deployLabel.classList.toggle("shortfall", s.cd <= 0 && shortfall > 0);
+          btns[i].disabled = B.paused || B.over;
+          btns[i].setAttribute("aria-disabled", String(btns[i].disabled || s.cd > 0 || shortfall > 0));
+          btns[i].setAttribute("aria-label", `Deploy ${s.name} (${i + 1}), ${cost} gold. ${deployState}`);
           const state = B.abilityState(i);
-          $(".cast-state", castBtns[i]).textContent = !state.deployed ? "Deploy first" : state.ready ? (state.ready > 1 ? `${state.ready} ready` : "Ready") : Math.ceil(state.cooldown) + "s";
-          castBtns[i].disabled = B.paused || B.over || !state.ready;
+          const castState = !state.deployed ? "Deploy first" : state.ready ? (state.ready > 1 ? `${state.ready} ready` : "Ready") : `Ready in ${Math.ceil(state.cooldown)}s`;
+          const ability = BC.UNITS[s.name].ability;
+          $(".cast-state", castBtns[i]).textContent = !state.deployed || state.ready ? castState : Math.ceil(state.cooldown) + "s";
+          updateTip(castBtns[i], `${ability.name} · ${castState}\n${ability.desc}\nCast: ${AB_KEYS[i]} / Shift+${i + 1}`);
+          castBtns[i].disabled = B.paused || B.over;
+          castBtns[i].setAttribute("aria-disabled", String(castBtns[i].disabled || !state.ready));
+          castBtns[i].setAttribute("aria-label", `Cast ${ability.name} (${AB_KEYS[i]}). ${castState}`);
           castBtns[i].classList.toggle("ready", state.ready > 0);
         });
       },
@@ -860,14 +961,16 @@
       // Shift changes event.key to punctuation on many keyboard layouts.
       const digit = /^Digit[1-5]$/.test(e.code) ? e.code.slice(-1) : e.key;
       if (digit >= "1" && digit <= "5") {
-        if (e.shiftKey) battle.castBySlot(+digit - 1);
-        else battle.deploy(+digit - 1);
+        if (e.shiftKey) command(castBtns[+digit - 1], () => battle.castBySlot(+digit - 1));
+        else command(btns[+digit - 1], () => battle.deploy(+digit - 1));
       } else if (AB_KEYS.includes(e.key.toUpperCase())) {
-        battle.castBySlot(AB_KEYS.indexOf(e.key.toUpperCase()));
+        const slot = AB_KEYS.indexOf(e.key.toUpperCase());
+        command(castBtns[slot], () => battle.castBySlot(slot));
       } else if (e.key === "f" || e.key === "F") {
+        hideTip();
         battle.castAny();
       } else if (e.key === "r" || e.key === "R" || e.key === "0") {
-        battle.castSpell(false);
+        command(spBtn, () => battle.castSpell(false));
       } else if (e.key.toLowerCase() === "x") {
         e.preventDefault();
         if (!e.repeat) applySpeed((S().settings.speed || 1) === 1 ? 2 : 1);
@@ -876,6 +979,7 @@
     addEventListener("keydown", keyHandler);
     return () => {
       clearTimeout(toastT);
+      btnWrap.removeEventListener("click", inspectUnit);
       document.removeEventListener("visibilitychange", onVisibility);
       guide.classList.add("hidden");
       removeEventListener("keydown", keyHandler);

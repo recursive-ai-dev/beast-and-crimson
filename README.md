@@ -5,6 +5,9 @@ A lane battler built from the design docs in this folder (`BC Main Menu`, `BC HU
 totem cubes down the lane, tap them to unleash their abilities, and raze the keeps
 of the crown's tax collectors across ten biomes, ending with the Collector King.
 
+See the [development roadmap](ROADMAP.md) for the proposed milestones toward a
+polished, shareable release.
+
 - **3 tribes**: Bloodfang (Offense, *Mixio*), Guardvaw (Defense, *Spuea*) and Goldclaw (Greed, *Pasea*), each with its own passive, active Totem Spell (*Blood Sacrifice*, *Spuea Bulwark*, *Royal Bribe*), palette and menu scene.
 - **30 units**: the ones from *BC Attack Sprites*, each with a unique ability. Tap a unit when its rune circle glows, press **Q/W/E/A/S** (or **F**), or turn on auto-cast in Settings or Pause.
 - **10 stages** across ten dark-fantasy biomes with stage hazards (*Crimson Canopy*, *Volcanic Fissures*, *Clinging Mire*, *Inward Tide*, *Keep Ballista*, *Black Blizzard*, *Bone-Sand Gale*) and mid-boss champions (*The Drowned Warden*, *Foundry Colossus*). Each first clear unlocks a new warrior, up to all 10 per tribe.
@@ -46,6 +49,16 @@ Each portrait deploys a warrior; its separate **Cast** button uses a ready abili
 from that unit type. The buttons show deployment and ability cooldowns, ready-unit
 counts, and the Totem spell cooldown. An enemy-surge warning appears five seconds
 before reinforcements arrive. An ability marked Ready may still need a target in range.
+
+Unavailable actions remain inspectable with keyboard focus or touch. Their details
+show the gold shortfall or cooldown, and attempting an unavailable action explains
+what is needed. A cast without a target stays ready. Manual casting tries the ready
+warriors of that type until one can use its ability. Blood Sacrifice requires a
+deployed warrior and at least 35% Totem health.
+
+The biome hazard stays visible during battle; select its name for the effect.
+Champion and Collector King arrivals appear separately from action feedback, so
+inspecting or casting does not replace the arrival warning.
 
 Audio starts after your first click, tap, or key press. Settings and Pause include
 saved **Master volume**, **Music**, **Sound effects**, and **Ambience** sliders;
@@ -123,6 +136,7 @@ Optional browser regressions use Puppeteer or Playwright from your development e
 
 ```bash
 node tools/check_browser.cjs
+node tools/check_browser.cjs --clarity  # focused tooltip, control and battle-notice checks
 ```
 
 If Puppeteer is installed outside this project, set `PUPPETEER_MODULE` to its
@@ -136,6 +150,11 @@ down to 320 pixels wide. It also runs `tools/check_audio.cjs`, which checks real
 MP3 playback and looping, crossfades, saved mixer controls, narration ducking,
 pause/resume, tab visibility, autoplay retries, and missing tracks.
 Browser tooling is only needed for these tests.
+
+`tools/check_clarity.cjs` adds mouse, emulated touch, and keyboard checks for unit
+details, gold shortfalls, cooldowns, missing targets, Blood Sacrifice requirements,
+Warband scrolling, and hazard/boss notices. It checks tooltip and notice placement
+at 1280×720, 844×390, 568×320, 390×844, and 320×568.
 
 Balance: enemies spawn from a *threat budget* (`TUNE.threat*`). Each foe costs its
 bounty, so tougher foes come less often. The numbers were tuned with a headless

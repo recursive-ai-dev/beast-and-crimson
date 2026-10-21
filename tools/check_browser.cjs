@@ -25,6 +25,8 @@ async function main() {
   let browser;
   try {
     browser = await (playwright ? playwright.chromium : puppeteer).launch({ headless: true, executablePath: process.env.BROWSER_BIN || undefined });
+    await require("./check_clarity.cjs")(browser, `http://127.0.0.1:${server.address().port}/index.html`, !!playwright);
+    if (process.argv.includes("--clarity")) return;
     await require("./check_audio.cjs")(browser, `http://127.0.0.1:${server.address().port}/index.html`, !!playwright);
     const page = await browser.newPage(), errors = [];
     if (playwright) {
@@ -76,7 +78,7 @@ async function main() {
     await page.evaluate(() => BC.currentBattle.destroy()); // Step simulation explicitly so assertions do not race animation frames.
     assert.equal(await page.evaluate(() => BC.save.tutorial.battle), "deploy");
     assert.equal(await page.evaluate(() => BC.currentBattle.autocast), false);
-    assert.equal(await page.$$eval(".cast-btn", els => els.every(el => el.disabled && el.textContent.includes("Deploy first"))), true);
+    assert.equal(await page.$$eval(".cast-btn", els => els.every(el => el.getAttribute("aria-disabled") === "true" && el.textContent.includes("Deploy first"))), true);
     await screenshot("tutorial-desktop");
     await page.click(".ubtn");
     assert.equal(await page.evaluate(() => BC.save.tutorial.battle), "ability");

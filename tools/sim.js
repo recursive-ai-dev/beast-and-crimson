@@ -238,6 +238,66 @@ function testFeatures() {
   assert.deepEqual(tutorialBattle.abilityState(0), { deployed: 0, ready: 0, cooldown: 0 });
   tutorialBattle.destroy();
 
+  // Failed manual commands explain the requirement without spending resources.
+  const feedback = [];
+  const clarity = new BC.Battle(mockCanvas(), {
+    tribe: "greed", stage: 0, lineup: ["Pledge Warbeast", "Spirit Guardian"],
+    onEnd: noop, toast: msg => feedback.push(msg),
+  });
+  assert.equal(clarity.castBySlot(0), false);
+  assert.match(feedback.at(-1), /Deploy Pledge Warbeast/);
+  clarity.gold = 0;
+  assert.equal(clarity.deploy(0), false);
+  assert.match(feedback.at(-1), /need 110 more gold/);
+  assert.equal(clarity.stats.deployed, 0);
+  clarity.gold = 250;
+  assert.equal(clarity.deploy(0), true);
+  const paid = clarity.gold;
+  assert.equal(clarity.deploy(0), false);
+  assert.match(feedback.at(-1), /deploys again in/);
+  assert.equal(clarity.gold, paid);
+  const bite = clarity.ents[0]; bite.abT = 0;
+  assert.equal(clarity.castBySlot(0), false);
+  assert.match(feedback.at(-1), /No enemy in range.*Still ready/);
+  assert.equal(bite.abT, 0);
+  assert.equal(clarity.stats.abilities, 0);
+  const front = clarity.spawnUnit(bite.name, bite.base, 250); front.abT = 0;
+  clarity.spawnEnemy("collector", { x: 70 });
+  const notices = feedback.length;
+  assert.equal(clarity.castBySlot(0), true, "Try other ready warriors when the front warrior has no target");
+  assert.equal(feedback.length, notices, "A successful cast must not leave a false failure message");
+  assert.equal(front.abT, 0);
+  assert.ok(bite.abT > 0);
+  front.abT = 8; bite.abT = 2;
+  assert.equal(clarity.castBySlot(0), false);
+  assert.match(feedback.at(-1), /ready in 2s/);
+  const reviver = clarity.spawnUnit("Spirit Guardian", clarity.slots[1].stats, 60); reviver.abT = 0;
+  assert.equal(clarity.castBySlot(1), false);
+  assert.match(feedback.at(-1), /No fallen ally to revive/);
+  assert.equal(reviver.abT, 0);
+  clarity.destroy();
+
+  const sacrifice = new BC.Battle(mockCanvas(), {
+    tribe: "offense", stage: 9, lineup: ["Beast Berserker"], onEnd: noop,
+    toast: msg => feedback.push(msg), announce: msg => feedback.push(msg),
+  });
+  assert.equal(sacrifice.castSpell(false), false);
+  assert.match(feedback.at(-1), /Deploy a warrior first/);
+  sacrifice.deploy(0);
+  sacrifice.player.hp = sacrifice.player.max * 0.34;
+  const life = sacrifice.player.hp;
+  assert.equal(sacrifice.castSpell(false), false);
+  assert.match(feedback.at(-1), /35% Totem health/);
+  assert.equal(sacrifice.player.hp, life);
+  assert.equal(sacrifice.player.spellCd, 0);
+  sacrifice.player.hp = sacrifice.player.max * 0.35;
+  assert.equal(sacrifice.castSpell(false), true);
+  sacrifice.enemy.hp = sacrifice.enemy.max * 0.5;
+  sacrifice.updateSpawner(0);
+  assert.match(feedback.at(-1), /Collector King enters/);
+  sacrifice.destroy();
+  console.log("[OK] Unavailable actions, target feedback, manual cast selection and Blood Sacrifice requirements");
+
   // 7. Adding rewards and filling slots preserves choices, cap and mercenary limit.
   BC.resetSave();
   const own = BC.tribeUnits("offense"), merc = BC.mercenaryUnits("offense");

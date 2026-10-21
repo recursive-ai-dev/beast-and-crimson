@@ -23,6 +23,7 @@
       this.onHud = opts.onHud || (() => {});
       this.onAction = opts.onAction || (() => {});
       this.toast = opts.toast || (() => {});
+      this.announce = opts.announce || this.toast;
       this.autocast = !!opts.autocast;
       this.speed = opts.speed || 1;
 
@@ -83,8 +84,8 @@
       const slot = this.slots[i];
       if (!slot || this.paused || this.over) return false;
       const cost = this.costOf(slot);
-      if (slot.cd > 0) return false;
-      if (this.gold < cost) { this.toast("Not enough gold"); return false; }
+      if (slot.cd > 0) { this.toast(slot.name + " deploys again in " + Math.ceil(slot.cd) + "s"); return false; }
+      if (this.gold < cost) { this.toast(slot.name + ": need " + Math.ceil(cost - this.gold) + " more gold"); return false; }
       this.gold -= cost;
       slot.cd = 1.5 + slot.stats.cost / 45;
       this.spawnUnit(slot.name, slot.stats, BASE_X + 22);
@@ -207,6 +208,7 @@
       if (this.wave % 3 === 0) {
         const b = this.spawnEnemy(this.wave % 6 === 0 ? "king" : "golem", { scale: 1.5, hpMul: 1.35, dmgMul: 1.15, bountyMul: 1.5 });
         b.yOff = -4;
+        this.announce((b.name === "king" ? "The Collector King" : "An Iron Golem") + " enters the lane!");
       }
       this.toast(`Wave ${this.wave}: ${st.name}!`);
       BC.sfx.drums();
@@ -267,14 +269,14 @@
         this.midBossSpawned = true;
         const mb = this.spawnEnemy(st.midBoss, { scale: 1.45, hpMul: 1.5, dmgMul: 1.15, bountyMul: 2 });
         mb.yOff = -3;
-        this.toast((st.midBossName || "A champion") + " enters the lane!");
+        this.announce((st.midBossName || "A champion") + " enters the lane!");
         BC.sfx.drums();
       }
       if (st.boss && !this.bossSpawned && (this.enemy.hp < this.enemy.max * 0.6 || this.t > 100)) {
         this.bossSpawned = true;
         const b = this.spawnEnemy(st.boss);
         b.yOff = -4;
-        this.toast(BC.ENEMIES[st.boss].lore);
+        this.announce("The Collector King enters the lane!");
         BC.sfx.drums();
       }
     }
@@ -443,12 +445,16 @@
     }
 
     // ------------------------------------------------------------ abilities --
-    cast(u, auto) {
+    abilityFailure(u) {
+      return u.ability.name + ": " + (u.ability.unavailable || "No enemy in range") + ". Still ready.";
+    }
+
+    cast(u, auto, quiet = false) {
       if (!u.ability || u.abT > 0 || u.dead || this.paused || this.over) return false;
       this._src = u.ability.name;
       const r = u.ability.run(this, u);
       this._src = null;
-      if (r === false) { if (!auto) this.toast(u.ability.name + ": no target"); return false; }
+      if (r === false) { if (!auto && !quiet) this.toast(this.abilityFailure(u)); return false; }
       u.abT = u.s.abspd;
       u.anim = "attack"; u.animT = 0;
       this.stats.abilities++;
@@ -472,16 +478,20 @@
       const slot = this.slots[i];
       if (!slot || this.paused || this.over) return false;
       const ready = this.ents.filter(e => !e.dead && e.side === "player" && e.name === slot.name && e.ability && e.abT === 0).sort((a, b) => b.x - a.x);
-      if (ready[0]) return this.cast(ready[0], false);
-      const any = this.ents.find(e => !e.dead && e.side === "player" && e.name === slot.name && e.ability);
-      if (any) this.toast(any.ability.name + " ready in " + Math.ceil(any.abT) + "s");
+      for (const u of ready) if (this.cast(u, false, true)) return true;
+      if (ready.length) this.toast(this.abilityFailure(ready[0]));
+      else {
+        const state = this.abilityState(i);
+        this.toast(state.deployed ? BC.UNITS[slot.name].ability.name + " ready in " + Math.ceil(state.cooldown) + "s" : "Deploy " + slot.name + " before casting");
+      }
       return false;
     }
 
     castAny() {
       if (this.paused || this.over) return false;
       const ready = this.ents.filter(e => !e.dead && e.side === "player" && e.ability && e.abT === 0).sort((a, b) => b.x - a.x);
-      for (const u of ready) if (this.cast(u, false)) return true;
+      for (const u of ready) if (this.cast(u, false, true)) return true;
+      this.toast(ready.length ? this.abilityFailure(ready[0]) : "No abilities ready. Deploy a warrior or wait for cooldowns.");
       return false;
     }
 
@@ -492,6 +502,8 @@
         if (!auto && sp && this.player.spellCd > 0) this.toast(sp.name + " ready in " + Math.ceil(this.player.spellCd) + "s");
         return false;
       }
+      const reason = sp.unavailable?.(this);
+      if (reason) { if (!auto) this.toast(sp.name + ": " + reason); return false; }
       this._src = sp.name;
       const r = sp.run(this);
       this._src = null;
