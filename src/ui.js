@@ -171,6 +171,8 @@
     tipPinned = tipPinned || pin;
     if ("feedback" in e) tipFeedback = e.feedback;
     tt.textContent = (tipFeedback ? `Last attempt: ${tipFeedback}\n\n` : "") + el.dataset.tip;
+    tt.style.left = "0px";
+    tt.style.top = "0px";
     tt.classList.remove("hidden");
     const r = el.getBoundingClientRect();
     // Cast details must sit above the whole command area, including portraits

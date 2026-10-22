@@ -116,7 +116,7 @@
     "Illusion Weaver": U("defense", "Trickster", [130, 110, 14, 4, 0.9, 20, 60, 20, 15, 0.5],
       { name: "Mirror Host", desc: "Weaves two illusory decoys that soak blows (each 2x ability power life).", run: (B, u) => { for (let i = 0; i < 2; i++) B.decoy(u, u.x + (18 + i * 14) * u.dir, u.s.abpwr * 2 * 2); B.impact(u, u); } }),
     "Guardian of the Grove": U("defense", "Healer", [150, 200, 12, 10, 0.7, 16, 50, 15, 18, 2],
-      { name: "Healing Grove", desc: "Raises a grove that heals allies inside for ability power each second for 6s.", run: (B, u) => { B.zone(u, u.x, 80, 6, (a) => B.heal(a, u.s.abpwr * 0.5), "ally"); B.impact(u, u); } }),
+      { name: "Healing Grove", desc: "Raises a grove that heals allies inside for ability power each second for 6s.", run: (B, u) => { B.zone(u, u.x, 80, 6, (a) => B.heal(a, u.s.abpwr), "ally"); B.impact(u, u); } }),
     "Ritualist": U("defense", "Blood Rite", [140, 150, 21, 6, 0.8, 18, 60, 30, 14, 0],
       { name: "Blood Rite", desc: "Spills 25% of its own life: allies nearby deal +40% damage for 6s.", run: (B, u) => { B.hurtSelf(u, u.hp * 0.25); B.alliesNear(u.x, 120).forEach(a => { B.buff(a, "dmg", 1.4, 6); B.impact(u, a); }); } }),
     "Spirit Guardian": U("defense", "Reviver", [220, 180, 12, 10, 0.7, 16, 50, 0, 25, 1],
@@ -141,7 +141,7 @@
     "Battle Mage": U("offense", "Caster", [170, 120, 14, 4, 0.8, 20, 100, 35, 12, 0.3],
       { name: "Arcane Volley", desc: "Four arcane bolts strike random foes in range for 2.5x ability power each.", run: (B, u) => { const ts = B.enemiesNear(u.x, u.s.range + 40); if (!ts.length) return false; for (let i = 0; i < 4; i++) { const t = ts[B.rnd(ts.length)]; B.hit(u, t, u.s.abpwr * 2.5); B.impact(u, t); } } }),
     "Thunderhoof Juggernaut": U("offense", "Juggernaut", [200, 480, 20, 16, 0.6, 26, 24, 25, 14, 2],
-      { name: "Thunder Charge", desc: "Charges forward, knocking back and stunning foes in its path for 1.5s.", run: (B, u) => { u.x += 50 * u.dir; const ts = B.enemiesNear(u.x, 50); ts.forEach(t => { B.hit(u, t, u.s.abpwr * 2); B.knock(t, 50 * u.dir); B.status(t, "stun", 1.5); B.impact(u, t); }); } }),
+      { name: "Thunder Charge", desc: "Charges forward, knocking back and stunning foes in its path for 1.5s.", run: (B, u) => { u.x = Math.max(34 + 18, Math.min(446 - 22, u.x + 50 * u.dir)); const ts = B.enemiesNear(u.x, 50); ts.forEach(t => { B.hit(u, t, u.s.abpwr * 2); B.knock(t, 50 * u.dir); B.status(t, "stun", 1.5); B.impact(u, t); }); } }),
     "Skytalon Raider": U("offense", "Raider", [130, 130, 18, 2, 1.2, 44, 22, 20, 10, 0.5],
       { name: "Swoop", desc: "Flies over the front line to strike the rearmost foe for 3x ability power.", run: (B, u) => { const t = B.rearmostEnemy(u, 260); if (!t) return false; B.hit(u, t, u.s.abpwr * 3); B.impact(u, t); } }),
   };

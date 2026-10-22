@@ -99,7 +99,7 @@ module.exports = async function checkAudio(browser, url, playwright) {
     await page.evaluate(() => {
       const spoken = []; window.audioTest.spoken = spoken;
       Object.defineProperty(window, "speechSynthesis", { configurable: true, value: {
-        cancel() {}, getVoices() { return []; }, speak(u) { spoken.push(u); u.onstart(); },
+        cancel() {}, getVoices() { return [{ name: "Daniel", lang: "en-GB" }]; }, speak(u) { spoken.push(u); u.onstart(); },
       } });
       BC.save.settings.narration = true;
       BC.narrate("First tribe"); BC.narrate("Second tribe"); spoken[0].onend();

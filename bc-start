@@ -3,7 +3,7 @@
 # Usage: ./bc-start [port]    (Ctrl+C to stop)
 set -euo pipefail
 
-cd "$(dirname "$(readlink -f "$0")")"
+cd "$(dirname "$0")"
 
 if ! command -v python3 >/dev/null 2>&1; then
   echo "python3 is required (sudo dnf install python3)." >&2
@@ -40,6 +40,6 @@ done
 
 echo "Beast and Crimson running at $url"
 echo "Press Ctrl+C to stop."
-xdg-open "$url" >/dev/null 2>&1 || echo "Open $url in your browser."
+xdg-open "$url" >/dev/null 2>&1 || open "$url" >/dev/null 2>&1 || echo "Open $url in your browser."
 
 wait "$server"

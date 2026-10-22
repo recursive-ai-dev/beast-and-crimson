@@ -131,7 +131,7 @@
     mix(hidden() ? 0 : MIX_FADE);
     syncMusic();
     if (!audible() || !settings().narration) BC.cancelNarration();
-    BC.ambience(audible() && scene !== "loading" && scene !== "intro" ? BC.save.tribe || "offense" : null);
+    BC.ambience(audible() && scene !== "loading" && scene !== "intro" ? BC.save.tribe || "offense" : null, hidden());
   }
 
   function wake() {

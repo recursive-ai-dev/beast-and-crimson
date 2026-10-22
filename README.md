@@ -132,6 +132,10 @@ Run feature checks and the campaign/endless simulations with
 tutorial progression, ability readiness, lineup limits, malformed save recovery,
 storage failures, and protection of equipped burns during forging.
 
+Run `node tools/check_lifecycle.cjs` for dependency-free regressions covering delayed
+battle results, pause-safe rendering, ballista timing, ability effects, bribed
+sprites, reroll IDs, delayed speech voices, and immediate ambience cleanup.
+
 Optional browser regressions use Puppeteer or Playwright from your development environment:
 
 ```bash

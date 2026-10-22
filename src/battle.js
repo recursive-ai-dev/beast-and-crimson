@@ -39,6 +39,7 @@
       this.zones = [];
       this.t = 0;
       this.hazardT = 0;
+      this.ballistaT = 0;
       this.wave = 1;
       this.waveT = 42;
       this.threat = 0;
@@ -66,6 +67,7 @@
     destroy() {
       this._destroyed = true;
       cancelAnimationFrame(this._raf);
+      clearTimeout(this._endTimer);
       this.cv.removeEventListener("pointerdown", this._pointer);
     }
 
@@ -144,6 +146,13 @@
 
     update(dt) {
       this.t += dt;
+      for (const side of [this.player, this.enemy]) side.flash = Math.max(0, (side.flash || 0) - dt);
+      if (BC.reducedMotion) this.embers.length = 0;
+      else {
+        for (const e of this.embers) { e.y -= e.v * dt; e.l += dt; }
+        this.embers = this.embers.filter(e => e.l < 3);
+        if (this.embers.length < 30 && Math.random() < 1 - Math.pow(0.7, dt * 60)) this.embers.push({ x: Math.random() * W, y: 200, v: 10 + Math.random() * 20, l: 0 });
+      }
       // economy
       let inc = Math.min(this.T.incomeCap, this.T.income + this.t * this.T.incomeGrowth) * this.incomeMul;
       for (const e of this.ents) if (!e.dead && e.side === "player" && e.passive && e.passive.gold) inc += e.passive.gold;
@@ -182,6 +191,7 @@
 
     advanceEndlessWave(keepBroken) {
       this.wave++;
+      this.hazardT = this.ballistaT = 0;
       this.waveT = 42;
       this.stats.waves = this.wave;
       this.stageIdx = this.wave - 1;
@@ -217,18 +227,21 @@
     updateHazard(dt) {
       const hz = this.stage.hazard;
       if (!hz) return;
-      this.hazardT += dt;
-      if (this.hazardT < 1) return;
-      this.hazardT -= 1;
-      if (hz.id === "canopy") {
-        for (const e of this.ents) if (!e.dead && e.side === "player" && e.kind === "unit") this.heal(e, 1.5);
-      } else if (hz.id === "lava") {
-        for (const e of this.ents) if (!e.dead && e.kind !== "decoy") this.dealDamage(null, e, 2, true);
-      } else if (hz.id === "fort" && Math.floor(this.t) % 12 === 0) {
-        const front = this.alliesNear(KEEP_X, 420).sort((a, b) => b.x - a.x)[0];
-        if (front) {
-          this.dealDamage(null, front, 28 + 3 * this.stageIdx);
-          this.fx.push({ kind: "bolt", x0: KEEP_X - 20, y0: LANE_Y - 56, x1: front.x, y1: LANE_Y - 14 + front.yOff, t: 0, dur: 0.22, col: "#ff9f1c" });
+      const period = hz.id === "fort" ? 12 : 1;
+      const timer = hz.id === "fort" ? "ballistaT" : "hazardT";
+      this[timer] += dt;
+      while (this[timer] >= period) {
+        this[timer] -= period;
+        if (hz.id === "canopy") {
+          for (const e of this.ents) if (!e.dead && e.side === "player" && e.kind === "unit") this.heal(e, 1.5);
+        } else if (hz.id === "lava") {
+          for (const e of this.ents) if (!e.dead && e.kind !== "decoy") this.dealDamage(null, e, 2, true);
+        } else if (hz.id === "fort") {
+          const front = this.alliesNear(KEEP_X, 420).sort((a, b) => b.x - a.x)[0];
+          if (front) {
+            this.dealDamage(null, front, 28 + 3 * this.stageIdx);
+            this.fx.push({ kind: "bolt", x0: KEEP_X - 20, y0: LANE_Y - 56, x1: front.x, y1: LANE_Y - 14 + front.yOff, t: 0, dur: 0.22, col: "#ff9f1c" });
+          }
         }
       }
     }
@@ -404,7 +417,7 @@
       }
     }
 
-    auraOf(e) { const m = window.BC_ASSETS.units[e.name]; return m ? m.aura : "#fff"; }
+    auraOf(e) { const m = window.BC_ASSETS.units[e.name]; return m ? m.aura : e.kind === "enemy" ? "#e8d0a0" : "#fff"; }
 
     dealDamage(src, t, amount, raw) {
       if (t.dead) return 0;
@@ -438,10 +451,14 @@
     }
 
     finish(win) {
+      if (this.over || this._destroyed) return;
       this.over = true;
       this.stats.time = this.t;
       (win ? BC.sfx.win : BC.sfx.lose)();
-      setTimeout(() => this.onEnd({ win, stats: this.stats }), 900);
+      this._endTimer = setTimeout(() => {
+        this._endTimer = null;
+        if (!this._destroyed) this.onEnd({ win, stats: this.stats });
+      }, 900);
     }
 
     // ------------------------------------------------------------ abilities --
@@ -645,22 +662,19 @@
       g.drawImage(this.bg, 0, 0);
       const t = this.t;
       // ambient: embers / glowing eyes / sparkles
-      if (BC.reducedMotion) this.embers.length = 0;
-      if (!BC.reducedMotion && !this.paused && this.embers.length < 30 && Math.random() < 0.3) this.embers.push({ x: Math.random() * W, y: 200, v: 10 + Math.random() * 20, l: 0 });
       const ember = this.tribe.bgScene === "pits" ? "#ff6a1a" : this.tribe.bgScene === "forest" ? "#98FB98" : "#FFD700";
-      for (const e of this.embers) { e.y -= e.v / 60; e.l += 1 / 60; g.fillStyle = ember; g.globalAlpha = Math.max(0, 1 - e.l / 3); g.fillRect(e.x + Math.sin(e.l * 3) * 3, e.y, 1, 1); }
+      for (const e of BC.reducedMotion ? [] : this.embers) { g.fillStyle = ember; g.globalAlpha = Math.max(0, 1 - e.l / 3); g.fillRect(e.x + Math.sin(e.l * 3) * 3, e.y, 1, 1); }
       g.globalAlpha = 1;
-      this.embers = this.embers.filter(e => e.l < 3);
       if (!BC.reducedMotion && this.tribe.bgScene === "pits" && Math.sin(t * 0.7) > 0.6) { g.fillStyle = "#FF0000"; g.fillRect(140, 120, 2, 1); g.fillRect(145, 120, 2, 1); }
 
       // strongholds
-      const pf = this.player.flash > 0 ? (this.player.flash -= 1 / 60) : 0;
+      const pf = this.player.flash || 0;
       const baseFrame = this.player.animT > 0 ? 4 + Math.min(4, Math.floor((0.5 - this.player.animT) * 10)) : Math.floor(t * 4) % 4;
       BC.drawFrame(g, "bases:" + this.tribe.id, baseFrame, BASE_X - 40, LANE_Y - 82, 2.5);
       if (pf > 0) { g.fillStyle = "rgba(255,0,0,0.25)"; g.fillRect(BASE_X - 40, LANE_Y - 82, 80, 80); }
       BC.drawFrame(g, "props:campfire", Math.floor(t * 7) % 4, BASE_X + 20, LANE_Y - 26, 1);
       BC.drawFrame(g, "props:lantern", Math.floor(t * 6) % 4, BASE_X - 30, LANE_Y - 44, 1);
-      const ef = this.enemy.flash > 0 ? (this.enemy.flash -= 1 / 60) : 0;
+      const ef = this.enemy.flash || 0;
       BC.drawFrame(g, "keeps:" + this.stage.keep, 0, KEEP_X - 40, LANE_Y - 78, 2.5);
       if (ef > 0) { g.fillStyle = "rgba(255,255,255,0.25)"; g.fillRect(KEEP_X - 40, LANE_Y - 78, 80, 80); }
       BC.drawFrame(g, "props:brazier", Math.floor(t * 8) % 4, KEEP_X - 58, LANE_Y - 30, 1);
@@ -699,6 +713,7 @@
 
     drawEnt(g, e) {
       const sc = e.scaleDraw || 1;
+      const flip = e.kind === "enemy" && e.dir === 1;
       const size = 32 * sc;
       const x = e.x - size / 2, y = LANE_Y - size + e.yOff;
       // shadow
@@ -722,13 +737,13 @@
       if (e.kind === "decoy") g.globalAlpha = 0.45 + 0.1 * Math.sin(this.t * 10);
       if (e.kind === "enemy" && e.anim === "walk") {     // bob + lean so stiff sprites feel alive
         const bob = Math.abs(Math.sin(e.age * 8)) * 1.5;
-        BC.drawFrame(g, e.sprite, frame, x, y - bob, sc);
+        BC.drawFrame(g, e.sprite, frame, x, y - bob, sc, flip);
       } else {
-        BC.drawFrame(g, e.sprite, frame, x, y, sc);
+        BC.drawFrame(g, e.sprite, frame, x, y, sc, flip);
       }
       if (e.flash > 0 && !e.dead) {
         g.globalCompositeOperation = "lighter"; g.globalAlpha = 0.5;
-        BC.drawFrame(g, e.sprite, frame, x, y, sc);
+        BC.drawFrame(g, e.sprite, frame, x, y, sc, flip);
         g.globalCompositeOperation = "source-over";
       }
       g.globalAlpha = 1;

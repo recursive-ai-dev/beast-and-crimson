@@ -123,7 +123,7 @@
   function resetTutorial() { save.tutorial = DEFAULT().tutorial; persist(); }
 
   // --------------------------------------------------------- runic burns --
-  function makeBurn(tier, rand) {
+  function makeBurn(tier, rand, id = save.nextId++) {
     rand = rand || Math.random;
     const keys = Object.keys(BC.BURN_STATS);
     const buff = keys[Math.floor(rand() * keys.length)];
@@ -132,7 +132,7 @@
     const u = BC.BURN_STATS[buff].up, d = BC.BURN_STATS[debuff].down;
     const up = (u[0] + rand() * (u[1] - u[0])) * BC.TIER_UP[tier];
     const down = (d[0] + rand() * (d[1] - d[0])) * BC.TIER_DOWN[tier];
-    return { id: save.nextId++, tier, buff, up: Math.round(up * 10) / 10, debuff, down: Math.round(down * 10) / 10 };
+    return { id, tier, buff, up: Math.round(up * 10) / 10, debuff, down: Math.round(down * 10) / 10 };
   }
 
   function rollTier(stage, rand) {
@@ -205,8 +205,7 @@
     const cost = (b.tier + 1) * 3;
     if ((save.ash || 0) < cost) return false;
     save.ash -= cost;
-    const fresh = makeBurn(b.tier, rand);
-    save.nextId--;
+    const fresh = makeBurn(b.tier, rand, b.id);
     Object.assign(b, { buff: fresh.buff, up: fresh.up, debuff: fresh.debuff, down: fresh.down });
     persist();
     return true;
@@ -309,10 +308,12 @@
 
   // Tribe ambience (BC Main Menu: "ambient sounds that match the tribe's aesthetic").
   let amb = null;
-  function ambience(tribe) {
+  const retiringAmbience = new Set();
+  function ambience(tribe, immediate = false) {
+    if (immediate) for (const cleanup of retiringAmbience) cleanup();
     if (document.hidden || !save.settings.sound || !save.settings.ambience || !save.settings.masterVolume || !save.settings.ambienceVolume) tribe = null;
     if (amb && amb.tribe === tribe) return;
-    if (amb) { amb.stop(); amb = null; }
+    if (amb) { amb.stop(immediate); amb = null; }
     if (!tribe || !save.settings.ambience) return;
     const a = ac(); if (!a) return;
     const out = a.createGain();
@@ -359,17 +360,27 @@
       drone(55, 0.05); loopNoise("lowpass", 200, 1, 0.15);
       pling([1200, 1500, 1800, 2600], 0.035, 900);
     }
-    amb = { tribe, stop: () => {
+    amb = { tribe, stop: (immediate) => {
+      let cleanupTimer;
+      const cleanup = () => {
+        clearTimeout(cleanupTimer);
+        nodes.forEach(n => { try { n.stop(); } catch (e) { /* already */ } n.disconnect(); });
+        out.disconnect();
+        retiringAmbience.delete(cleanup);
+      };
       timers.forEach(clearInterval);
       out.gain.cancelScheduledValues(a.currentTime);
+      if (immediate || a.state !== "running") { cleanup(); return; }
       out.gain.setTargetAtTime(0.0001, a.currentTime, 0.4);
-      setTimeout(() => { nodes.forEach(n => { try { n.stop(); } catch (e) { /* already */ } }); out.disconnect(); }, 1500);
+      retiringAmbience.add(cleanup);
+      cleanupTimer = setTimeout(cleanup, 1500);
     } };
   }
   // Tribe narration: a guttural, whispering voice that warns rather than describes.
-  let utterance = null;
+  let utterance = null, pendingVoice = null;
   function cancelNarration() {
     utterance = null;
+    if (pendingVoice) { pendingVoice(); pendingVoice = null; }
     if (window.speechSynthesis) speechSynthesis.cancel();
     BC.audio?.duckNarration(false);
   }
@@ -378,12 +389,24 @@
     cancelNarration();
     const u = new SpeechSynthesisUtterance(text);
     utterance = u;
-    const voices = speechSynthesis.getVoices();
-    u.voice = voices.find(v => /male|daniel|fred|david|george/i.test(v.name) && /^en/i.test(v.lang)) || voices.find(v => /^en/i.test(v.lang)) || null;
     u.pitch = 0.1; u.rate = 0.72; u.volume = 0.9 * save.settings.masterVolume;
     u.onstart = () => { if (utterance === u) BC.audio?.duckNarration(true); };
     u.onend = u.onerror = () => { if (utterance === u) { utterance = null; BC.audio?.duckNarration(false); } };
-    speechSynthesis.speak(u);
+    const speak = () => {
+      if (utterance !== u) return;
+      if (pendingVoice) { pendingVoice(); pendingVoice = null; }
+      const voices = speechSynthesis.getVoices();
+      u.voice = voices.find(v => /male|daniel|fred|david|george/i.test(v.name) && /^en/i.test(v.lang)) || voices.find(v => /^en/i.test(v.lang)) || null;
+      speechSynthesis.speak(u);
+    };
+    if (speechSynthesis.getVoices().length) speak();
+    else {
+      // Some browsers never announce voices; retain a bounded default fallback.
+      const ready = () => { if (speechSynthesis.getVoices().length) speak(); };
+      const timer = setTimeout(speak, 1000);
+      speechSynthesis.addEventListener("voiceschanged", ready);
+      pendingVoice = () => { clearTimeout(timer); speechSynthesis.removeEventListener("voiceschanged", ready); };
+    }
   }
 
   Object.assign(BC, {
