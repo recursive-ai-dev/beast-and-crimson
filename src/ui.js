@@ -287,15 +287,55 @@
   SCREENS.intro = () => {
     const cv = $("#intro-canvas"), g = cv.getContext("2d");
     const sub = $("#intro .subtitle");
-    let raf, subtitleTimer, last = performance.now(), finished = false;
+    let raf, last = performance.now(), finished = false;
     BC.loadIntroArt();
     const scene = BC.IntroScene.create({ makeCanvas: (w, h) => Object.assign(document.createElement("canvas"), { width: w, height: h }) });
     const finish = () => { if (finished) return; finished = true; S().seenIntro = true; BC.persist(); show("menu", true); };
+
+    // The three tribes, named: shown on the title-card beat.
+    const card = $("#intro .title-card"), tribesEl = $(".tc-tribes", card);
+    tribesEl.textContent = "";
+    for (const id of ["offense", "defense", "greed"]) {
+      const t = BC.TRIBES[id];
+      tribesEl.append(h("div", { class: "tc-tribe", style: `--glow:${ICON_COLOR[id]}` },
+        h("img", { src: BC.iconURL("bases:" + id, 0, 96), alt: "" }),
+        h("h3", {}, t.name),
+        h("span", { class: "tc-role" }, TRIBE_ROLE[id]),
+        h("span", { class: "tc-word" }, `${t.word} ${t.pron}`)));
+    }
+
+    // Subtitle: typed letter by letter on the intro clock, so it stays in step with the picture.
+    let chars = [], schedule = [], shown = 0, typingFrom = 0, typingFor = 1;
+    const TYPE_DELAY = 0.35, TYPE_RATE = 24;   // seconds before typing starts; letters per second
+    const buildSubtitle = (text) => {
+      sub.textContent = "";
+      chars = [];
+      let word = null;
+      const visual = h("span", { "aria-hidden": "true" });
+      for (const seg of BC.introSegments(text)) for (const ch of seg.text) {
+        if (ch === " ") { visual.append(" "); word = null; continue; }
+        if (!word) { word = h("span", { class: "w" }); visual.append(word); }
+        const span = h("span", { class: "ch" + (seg.em ? " em" : "") }, ch);
+        word.append(span); chars.push(span);
+      }
+      sub.append(h("span", { class: "sr-only" }, BC.introPlain(text)), visual);
+      schedule = BC.typeSchedule(BC.introPlain(text));
+      shown = 0;
+    };
+    const typeSubtitle = (beat) => {
+      const since = tl.time - beat.at;
+      sub.style.opacity = since > beat.dur - 0.4 ? 0 : 1;
+      const progress = BC.reducedMotion ? 1 : (since - TYPE_DELAY) / typingFor;
+      const count = BC.typedCount(schedule, progress);
+      while (shown < count) chars[shown++].classList.add("on");
+    };
+
     const tl = BC.createTimeline(BC.INTRO, {
       onBeat: (beat) => {
-        sub.style.opacity = 0;
-        clearTimeout(subtitleTimer);
-        subtitleTimer = setTimeout(() => { sub.textContent = beat.text; sub.style.opacity = 1; }, BC.reducedMotion ? 0 : 300);
+        buildSubtitle(beat.text);
+        // Type for at most ~65% of the beat so the line can be read before it fades.
+        typingFor = Math.max(0.5, Math.min(beat.dur * 0.65 - TYPE_DELAY, chars.length / TYPE_RATE));
+        card.classList.toggle("show", !!beat.card);
         if (beat.sfx) BC.sfx[beat.sfx]?.();
         if (beat.music) BC.audio.cueMusic(true);
       },
@@ -305,17 +345,19 @@
       const dt = Math.min(0.05, (now - last) / 1000); last = now;
       tl.update(dt);
       if (finished) return;
+      if (tl.beat()) typeSubtitle(tl.beat());
       scene.draw(g, tl, dt, BC.reducedMotion);
       raf = requestAnimationFrame(frame);
     };
     tl.start();
     raf = requestAnimationFrame(frame);
     $("#intro .skip").onclick = () => { BC.sfx.click(); finish(); };
-    return () => { finished = true; cancelAnimationFrame(raf); clearTimeout(subtitleTimer); };
+    return () => { finished = true; cancelAnimationFrame(raf); card.classList.remove("show"); };
   };
 
   // BC Main Menu: icon tints per tribe, and what is carved into each slab.
   const ICON_COLOR = { greed: "#FFD700", defense: "#4682B4", offense: "#FF4500" };
+  const TRIBE_ROLE = { offense: "Offense · Overwhelm", defense: "Defense · Endure", greed: "Greed · Outgrow" };
   const INSCRIPTION = { offense: "ᛗ ᛁ ᛉ ᛁ ᛟ ✶ ᚠ ᛁ ᚱ ᛖ", defense: "♣ ≈ ❦ ≈ ♣ ≈ ❦", greed: "◆ ● ᛈ ᚨ ᛊ ● ◆" };
 
   SCREENS.menu = () => {
@@ -338,7 +380,7 @@
         onpointermove: (e) => { const r = e.currentTarget.getBoundingClientRect(); e.currentTarget.style.setProperty("--tilt", ((e.clientX - r.left) / r.width - 0.5) * 14 + "deg"); } },
         h("div", { class: "sigil" }, h("img", { class: "px", src: BC.iconURL("bases:" + id, 0, 96) })),
         h("h3", {}, t.name),
-        h("span", { class: "tribe-role" }, { offense: "Offense · Overwhelm", defense: "Defense · Endure", greed: "Greed · Outgrow" }[id]),
+        h("span", { class: "tribe-role" }, TRIBE_ROLE[id]),
         h("div", { class: "word" }, `${t.word} ${t.pron}`),
         h("div", { class: "runes" }, INSCRIPTION[id]),
         h("p", {}, t.passive),

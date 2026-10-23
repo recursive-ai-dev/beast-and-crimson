@@ -272,14 +272,16 @@
     "The Collector King waits in Spirit Vale. He does not hurry.",
   ];
 
-  // The intro cut scene, on one clock (see src/intro.js). `sfx` names a BC.sfx cue,
-  // `music` brings the menu theme in under the scene. Beat `i` is shot `i` in src/intro-scene.js.
+  // The intro cut scene, on one clock (see src/intro.js). Beat `i` is shot `i` in
+  // src/intro-scene.js. `text` marks *emphasis*; `sfx` names a BC.sfx cue, `music`
+  // brings the menu theme in under the scene, `card` shows the three-tribe title card.
   const INTRO = [
-    { at: 0, dur: 4, text: "The leader's tax collectors came at the end of the harvest." },
-    { at: 4, dur: 4, text: "They drowned the ones who could not pay — your expecting wife among them." },
-    { at: 8, dur: 4, sfx: "thunder", text: "You buried nothing. The river kept everything." },
-    { at: 12, dur: 4.5, sfx: "drums", music: true, text: "Now the tribes gather behind you: village by village, town by town, city by city." },
-    { at: 16.5, dur: 4, text: "The common folk against the crown. Beast and crimson." },
+    { at: 0, dur: 4, text: "The leader's *tax collectors* came at the end of the harvest." },
+    { at: 4, dur: 4, text: "They drowned the ones who could not pay — your *expecting wife* among them." },
+    { at: 8, dur: 4, sfx: "thunder", text: "You buried *nothing*. The river kept *everything*." },
+    { at: 12, dur: 4.5, sfx: "drums", music: true, text: "Now the tribes *gather* behind you: village by village, town by town, city by city." },
+    { at: 16.5, dur: 4.5, text: "The common folk against the crown, and the *Collector King* who wears it." },
+    { at: 21, dur: 4, card: true, text: "Three tribes. One *rebellion*." },
   ];
   const STORY = INTRO.map(beat => beat.text);
 

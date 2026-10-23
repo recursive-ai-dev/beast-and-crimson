@@ -397,7 +397,7 @@
         g.fillStyle = "#08030a"; g.fillRect(-PAD, 238, W + PAD * 2, H);
       });
       return {
-        cam: [[0, 2, 1.0], [0, -5, 1.1]], tint: [255, 30, 20, 0.08], rain: 0, fadeIn: 0.5, fadeOut: 0.9,
+        cam: [[0, 2, 1.0], [0, -5, 1.1]], tint: [255, 30, 20, 0.08], rain: 0, fadeIn: 0.9, fadeOut: 0.35, iris: [240, 100],
         layers: [[0.06, far], [0.16, keepLayer], [0.5, near]],
         dynamic(g, st) {
           const { t, local, calm, P, since } = st;
@@ -426,7 +426,36 @@
       };
     }
 
-    const shots = [harvest(), drowning(), silence(), gather(), crown()];
+    // ------------------------------------------------------------ shot 5 --
+    // Title card: embers rising from a black ridge. The DOM card with the tribe names sits on top.
+    function tribesCard() {
+      const r = rng(67);
+      const far = layerCanvas(g => {
+        sky(g, [[0, [6, 2, 8]], [0.6, [40, 8, 18]], [1, [110, 24, 24]]]);
+        stars(g, r, 50, 120); clouds(g, r, 6, 40, 150, "rgba(60,10,20,.5)");
+        ridge(g, r, 214, 50, "#12060c", "#2a1018");
+      });
+      const near = layerCanvas(g => { ridge(g, r, 244, 22, "#07020a", "#160a10"); g.fillStyle = "#07020a"; g.fillRect(-PAD, 252, W + PAD * 2, H); });
+      return {
+        cam: [[0, 0, 1.0], [0, -3, 1.04]], tint: [255, 40, 20, 0.05], rain: 0, fadeIn: 0.6, fadeOut: 0.5,
+        layers: [[0.05, far], [0.3, near]],
+        dynamic(g, st) {
+          const { t, calm, P } = st;
+          const [ox, oy] = P(0.3);
+          g.globalCompositeOperation = "lighter";
+          TRIBES.forEach((tribe, ti) => glow(g, 240 + (ti - 1) * 140, 130, 90, tribe.color, 0.16 + (calm ? 0 : 0.04 * Math.sin(t * 1.6 + ti * 2))));
+          g.globalCompositeOperation = "source-over";
+          if (!calm && Math.random() < 0.5) { const tribe = TRIBES[Math.floor(Math.random() * 3)]; embers.push({ x: Math.random() * W - ox, y: H - oy + 4, vx: (Math.random() - 0.5) * 12, vy: -16 - Math.random() * 26, l: 0, c: tribe.color }); }
+          for (let i = embers.length - 1; i >= 0; i--) {
+            const e = embers[i]; e.l += st.dt; e.x += e.vx * st.dt; e.y += e.vy * st.dt;
+            if (e.l > 4) { embers.splice(i, 1); continue; }
+            g.fillStyle = rgb(mix(e.c, [255, 240, 190], 0.5), 0.9 * (1 - e.l / 4)); g.fillRect(Math.round(e.x + ox), Math.round(e.y + oy), 2, 2);
+          }
+        },
+      };
+    }
+
+    const shots = [harvest(), drowning(), silence(), gather(), crown(), tribesCard()];
     let last = -1, drift = 0;
     return {
       shots,
@@ -455,11 +484,16 @@
           const flash = Math.max(Math.exp(-since * 7), 0.55 * Math.exp(-Math.max(0, since - 0.4) * 9) * (since > 0.4 ? 1 : 0));
           if (flash > 0.02) { g.fillStyle = `rgba(215,225,255,${0.65 * flash})`; g.fillRect(0, 0, W, H); }
         }
-        const fade = Math.min(shot.fadeIn ? clamp(since / shot.fadeIn) : 1, (shot.fadeOut ?? 0.35) ? clamp((tl.beat().dur - since) / (shot.fadeOut ?? 0.35)) : 1);
+        if (shot.iris && since < shot.fadeIn) {
+          // Opens like an eye from a point: the keep first, then the whole realm.
+          const radius = ease(since / shot.fadeIn) * Math.hypot(W, H);
+          g.fillStyle = "#000"; g.beginPath(); g.rect(0, 0, W, H); g.moveTo(shot.iris[0] + radius, shot.iris[1]); g.arc(shot.iris[0], shot.iris[1], radius, 0, 6.2832, true); g.fill("evenodd");
+        }
+        const fade = Math.min(shot.fadeIn && !shot.iris ? clamp(since / shot.fadeIn) : 1, (shot.fadeOut ?? 0.35) ? clamp((tl.beat().dur - since) / (shot.fadeOut ?? 0.35)) : 1);
         if (fade < 1) { g.fillStyle = `rgba(0,0,0,${1 - fade})`; g.fillRect(0, 0, W, H); }
       },
     };
   }
 
-  BC.IntroScene = { create, W, H };
+  BC.IntroScene = { create, W, H, SHOTS: 6 };
 })();

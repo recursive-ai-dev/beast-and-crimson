@@ -60,5 +60,39 @@
     return tl;
   }
 
+  // ---- subtitle text: *emphasis* markup and typewriter timing -------------------
+
+  /** Split "a *b* c" into [{ text: "a ", em: false }, { text: "b", em: true }, ...]. */
+  function introSegments(text) {
+    return text.split("*").map((part, i) => ({ text: part, em: i % 2 === 1 })).filter(seg => seg.text);
+  }
+  const introPlain = (text) => text.replace(/\*/g, "");
+
+  // Letters arrive at a steady pace, with a breath after punctuation.
+  const PAUSE = { ",": 5, ";": 5, ":": 5, "—": 6, ".": 9, "!": 9, "?": 9 };
+  /** Cumulative weight of each non-space character; the last entry is the total. */
+  function typeSchedule(plain) {
+    const out = [];
+    let sum = 0;
+    for (const ch of plain) {
+      if (/\s/.test(ch)) continue;
+      sum += 1 + (PAUSE[ch] || 0);
+      out.push(sum);
+    }
+    return out;
+  }
+  /** How many non-space characters are visible once `progress` (0..1) of the typing time has passed. */
+  function typedCount(schedule, progress) {
+    if (!schedule.length) return 0;
+    const target = Math.min(1, Math.max(0, progress)) * schedule.at(-1);
+    let n = 0;
+    while (n < schedule.length && schedule[n] <= target + 1e-9) n++;
+    return n;
+  }
+
   BC.createTimeline = createTimeline;
+  BC.introSegments = introSegments;
+  BC.introPlain = introPlain;
+  BC.typeSchedule = typeSchedule;
+  BC.typedCount = typedCount;
 })();

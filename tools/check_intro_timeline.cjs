@@ -3,6 +3,7 @@ const assert = require("node:assert/strict");
 global.window = {};
 require("../src/data.js");
 require("../src/intro.js");
+require("../src/intro-scene.js");
 const BC = window.BC;
 
 const beats = BC.INTRO;
@@ -62,4 +63,31 @@ const make = () => {
   assert.equal(tl.since(0), beats[1].at + beats[1].dur / 2);
   assert.equal(tl.since(99), 0);
 }
+
+// Every beat has a shot, and the title card is the last beat.
+assert.equal(BC.IntroScene.SHOTS, beats.length, "one shot per beat");
+assert.equal(beats.at(-1).card, true);
+assert.equal(beats.filter(b => b.card).length, 1);
+
+// Emphasis markup: balanced, parsed, and stripped for narration.
+for (const [i, b] of beats.entries()) assert.equal(b.text.split("*").length % 2, 1, `beat ${i} has balanced emphasis marks`);
+assert.deepEqual(BC.introSegments("a *b* c"), [{ text: "a ", em: false }, { text: "b", em: true }, { text: " c", em: false }]);
+assert.equal(BC.introPlain("a *b* c"), "a b c");
+assert.equal(BC.introSegments(beats[2].text).filter(s => s.em).map(s => s.text).join("|"), "nothing|everything");
+
+// Typewriter: monotonic, complete at the end, pauses after punctuation.
+for (const b of beats) {
+  const plain = BC.introPlain(b.text), sched = BC.typeSchedule(plain), n = plain.replace(/\s/g, "").length;
+  assert.equal(sched.length, n);
+  assert.equal(BC.typedCount(sched, 0), 0);
+  assert.equal(BC.typedCount(sched, 1), n);
+  let prev = 0;
+  for (let p = 0; p <= 1; p += 0.05) { const c = BC.typedCount(sched, p); assert.ok(c >= prev); prev = c; }
+}
+{
+  const sched = BC.typeSchedule("ab. cd");   // the full stop weighs more than a letter
+  assert.ok(sched[2] - sched[1] > sched[1] - sched[0]);
+  assert.ok(sched[3] - sched[2] === 1);
+}
 console.log("[OK] Intro timeline: ordering, stalled frames, seek, pause, next, end-once");
+console.log("[OK] Intro story: one shot per beat, emphasis markup, typewriter schedule");
