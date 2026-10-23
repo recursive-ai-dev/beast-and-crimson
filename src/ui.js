@@ -204,6 +204,7 @@
   // -------------------------------------------------------------- loading --
   const LOAD_STAGES = [[0, "Rousing the tribes"], [0.3, "Awakening thirty warriors"], [0.6, "Lighting the totems"], [0.9, "The crown is watching"]];
   const RECAP_AFTER = 7 * 24 * 3600 * 1000;   // absence after which the story recap plays on launch
+  let menuReveal = false;                      // set when the menu follows the intro: play the title reveal
   let introRecap = false;                      // set for the next intro: short recap instead of the full story
   const LOAD_MIN_FIRST = 2600, LOAD_MIN_RETURN = 600;   // ms the screen stays up, so it is seen rather than flashed
 
@@ -296,7 +297,7 @@
     let raf, last = performance.now(), finished = false;
     BC.loadIntroArt();
     const scene = BC.IntroScene.create({ makeCanvas: (w, h) => Object.assign(document.createElement("canvas"), { width: w, height: h }) });
-    const finish = () => { if (finished) return; finished = true; S().seenIntro = true; BC.persist(); show("menu", true); };
+    const finish = () => { if (finished) return; finished = true; S().seenIntro = true; BC.persist(); menuReveal = true; show("menu", true); };
     const recap = introRecap; introRecap = false;
 
     // The three tribes, named: shown on the title-card beat.
@@ -463,6 +464,38 @@
     start.onclick = () => show("campaign", true);
     $("#menu .gear").onclick = openSettings;
 
+    // Title reveal after the story: camera push, crest ignites, letters strike, slabs rise.
+    const root = $("#menu"), title = $("#menu .title");
+    const reveal = menuReveal && !BC.reducedMotion;
+    menuReveal = false;
+    const timers = [];
+    let endReveal = () => {};
+    const titleHTML = title.innerHTML;
+    title.setAttribute("aria-label", title.textContent);
+    if (reveal) {
+      // Each letter becomes its own element so it can land on its own beat.
+      let n = 0;
+      const wrap = (node) => {
+        if (node.nodeType === 3) return [...node.textContent].map(ch => ch === " " ? " " : h("i", { class: "tl", "aria-hidden": "true", style: `--i:${n++}` }, ch));
+        node.classList.add("tl"); node.style.setProperty("--i", n++); node.setAttribute("aria-hidden", "true"); return [node];
+      };
+      title.replaceChildren(...[...title.childNodes].flatMap(wrap));
+      slabs.querySelectorAll(".slab").forEach((el, i) => el.style.setProperty("--si", i));
+      root.classList.add("reveal");
+      const total = 3600;
+      const strikeAt = 900 + (n - 1) * 60;
+      timers.push(setTimeout(() => { BC.sfx.strike(); burst(); }, strikeAt));
+      endReveal = () => {
+        timers.forEach(clearTimeout); timers.length = 0;
+        root.classList.remove("reveal");
+        removeEventListener("pointerdown", endReveal, true); removeEventListener("keydown", endReveal, true);
+        endReveal = () => {};
+      };
+      timers.push(setTimeout(() => endReveal(), total));
+      // Any input finishes the reveal at once.
+      timers.push(setTimeout(() => { addEventListener("pointerdown", endReveal, true); addEventListener("keydown", endReveal, true); }, 300));
+    }
+
     // Particles over the painted backdrop (BC Main Menu): Bloodfang embers and the
     // red eyes of its dark forest, Guardvaw fireflies and river mist, Goldclaw glints.
     const cv = $("#menu .menu-bg"), g = cv.getContext("2d");
@@ -470,6 +503,15 @@
     const motes = [];
     const eyes = Array.from({ length: 12 }, (_, i) => ({ x: (i % 2 ? W - 60 : 10) + Math.random() * 50, y: 120 + Math.random() * 120, p: Math.random() * 9 }));
     let raf, t = 0, last = performance.now();
+    // A spray of sparks from where the title sits.
+    const burst = () => {
+      const a = cv.getBoundingClientRect(), b = title.getBoundingClientRect();
+      const cx = (b.left + b.width / 2 - a.left) / a.width * W, cy = (b.top + b.height / 2 - a.top) / a.height * H;
+      for (let i = 0; i < 46; i++) {
+        const ang = Math.random() * 6.2832, sp = 25 + Math.random() * 85;
+        motes.push({ x: cx + Math.cos(ang) * 40 * Math.random(), y: cy, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp * 0.6 - 18, l: 0.35, max: 1.1 + Math.random() * 1.3, c: Math.random() < 0.4 ? "255,220,120" : "255,100,30" });
+      }
+    };
     const spawn = (tribe) => {
       if (tribe === "offense") return { x: Math.random() * W, y: H + 2, vx: (Math.random() - 0.5) * 8, vy: -14 - Math.random() * 26, l: 0, max: 5 + Math.random() * 5, c: Math.random() < 0.3 ? "255,210,90" : "255,90,20" };
       if (tribe === "defense") return { x: Math.random() * W, y: 120 + Math.random() * 140, vx: (Math.random() - 0.5) * 6, vy: (Math.random() - 0.5) * 4, l: 0, max: 6 + Math.random() * 6, c: Math.random() < 0.5 ? "190,255,170" : "150,220,255" };
@@ -517,7 +559,11 @@
       raf = requestAnimationFrame(frame);
     };
     raf = requestAnimationFrame(frame);
-    return () => cancelAnimationFrame(raf);
+    return () => {
+      cancelAnimationFrame(raf); endReveal();
+      root.classList.remove("reveal");
+      title.innerHTML = titleHTML;
+    };
   };
 
   SCREENS.campaign = () => {

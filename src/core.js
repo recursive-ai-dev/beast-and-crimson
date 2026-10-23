@@ -305,6 +305,8 @@
     win: () => { [392, 523, 659, 784].forEach((f, i) => tone(f, 0.6, "triangle", 0.12, null, i * 0.15)); sfx.drums(); },
     lose: () => { [392, 330, 262, 196].forEach((f, i) => tone(f, 0.7, "sawtooth", 0.06, null, i * 0.22)); },
     click: () => tone(600, 0.05, "square", 0.04),
+    // The title landing: a low hammer blow with a spray of sparks.
+    strike: () => { tone(78, 0.7, "sine", 0.34, 0.45); tone(156, 0.3, "triangle", 0.1, 0.5); noise(0.45, 0.14, 0, 2400); },
     thunder: () => { noise(1.6, 0.22, 0, 60); tone(52, 1.8, "sawtooth", 0.1, 0.5); tone(38, 2.2, "sine", 0.3, 0.6, 0.1); },
   };
 
