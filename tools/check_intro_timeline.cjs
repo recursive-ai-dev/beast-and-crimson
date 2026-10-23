@@ -89,5 +89,13 @@ for (const b of beats) {
   assert.ok(sched[2] - sched[1] > sched[1] - sched[0]);
   assert.ok(sched[3] - sched[2] === 1);
 }
+// Narration: every beat has a short spoken line that adds nothing the subtitle lacks.
+// The narrator speaks at ~0.72x, roughly 10 letters a second, so a line must fit in its beat.
+for (const [i, b] of beats.entries()) {
+  assert.ok(b.voice && !b.voice.includes("*"), `beat ${i} has a plain voice line`);
+  assert.ok(b.voice.length <= 42, `beat ${i} voice (${b.voice.length} chars) fits inside its ${b.dur}s beat`);
+  const shown = new Set(b.text.toLowerCase().match(/[a-z']+/g));
+  for (const w of b.voice.toLowerCase().match(/[a-z']+/g)) assert.ok(shown.has(w), `beat ${i}: spoken "${w}" is not in the subtitle`);
+}
 console.log("[OK] Intro timeline: ordering, stalled frames, seek, pause, next, end-once");
 console.log("[OK] Intro story: one shot per beat, emphasis markup, typewriter schedule");

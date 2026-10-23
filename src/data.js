@@ -273,15 +273,18 @@
   ];
 
   // The intro cut scene, on one clock (see src/intro.js). Beat `i` is shot `i` in
-  // src/intro-scene.js. `text` marks *emphasis*; `sfx` names a BC.sfx cue, `music`
-  // brings the menu theme in under the scene, `card` shows the three-tribe title card.
+  // src/intro-scene.js. `text` is the subtitle, with *emphasis*. `voice` is what the
+  // narrator says over it: a distilled line short enough to finish inside the beat
+  // (the narrator is slow), so the subtitle never omits anything that is spoken.
+  // `sfx` names a BC.sfx cue, `music` brings the menu theme in under the scene,
+  // `card` shows the three-tribe title card.
   const INTRO = [
-    { at: 0, dur: 4, text: "The leader's *tax collectors* came at the end of the harvest." },
-    { at: 4, dur: 4, text: "They drowned the ones who could not pay — your *expecting wife* among them." },
-    { at: 8, dur: 4, sfx: "thunder", text: "You buried *nothing*. The river kept *everything*." },
-    { at: 12, dur: 4.5, sfx: "drums", music: true, text: "Now the tribes *gather* behind you: village by village, town by town, city by city." },
-    { at: 16.5, dur: 4.5, text: "The common folk against the crown, and the *Collector King* who wears it." },
-    { at: 21, dur: 4, card: true, text: "Three tribes. One *rebellion*." },
+    { at: 0, dur: 4, voice: "Collectors came at the end of the harvest.", text: "The leader's *tax collectors* came at the end of the harvest." },
+    { at: 4, dur: 4, voice: "They drowned the ones who could not pay.", text: "They drowned the ones who could not pay — your *expecting wife* among them." },
+    { at: 8, dur: 4, sfx: "thunder", voice: "The river kept everything.", text: "You buried *nothing*. The river kept *everything*." },
+    { at: 12, dur: 4.5, sfx: "drums", music: true, voice: "Now the tribes gather.", text: "Now the tribes *gather* behind you: village by village, town by town, city by city." },
+    { at: 16.5, dur: 4.5, voice: "The common folk against the crown.", text: "The common folk against the crown, and the *Collector King* who wears it." },
+    { at: 21, dur: 4, card: true, voice: "Three tribes. One rebellion.", text: "Three tribes. One *rebellion*." },
   ];
   const STORY = INTRO.map(beat => beat.text);
 

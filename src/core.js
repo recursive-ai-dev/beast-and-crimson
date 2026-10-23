@@ -387,6 +387,8 @@
     if (window.speechSynthesis) speechSynthesis.cancel();
     BC.audio?.duckNarration(false);
   }
+  /** True from the moment a line is queued until it finishes or is cancelled. */
+  const narrating = () => utterance !== null;
   function narrate(text) {
     if (document.hidden || !save.settings.sound || !save.settings.masterVolume || !save.settings.narration || !window.speechSynthesis) return;
     cancelNarration();
@@ -416,6 +418,6 @@
     save, persist, resetSave, normalizeSave, tribeUnits, unlockedUnits, mercenaryUnits, lineup, addToLineup, fillLineup,
     advanceTutorial, skipTutorial, resetTutorial,
     makeBurn, rollTier, unitStats, burnText, salvageBurn, fuseBurns, rerollBurn,
-    images, loadAssets, loadStageArt, drawFrame, iconURL, sfx, ambience, narrate, cancelNarration,
+    images, loadAssets, loadStageArt, drawFrame, iconURL, sfx, ambience, narrate, narrating, cancelNarration,
   });
 })();

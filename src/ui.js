@@ -305,8 +305,9 @@
     }
 
     // Subtitle: typed letter by letter on the intro clock, so it stays in step with the picture.
-    let chars = [], schedule = [], shown = 0, typingFrom = 0, typingFor = 1;
+    let chars = [], schedule = [], shown = 0, typingFor = 1, spoken = false, held = 0;
     const TYPE_DELAY = 0.35, TYPE_RATE = 24;   // seconds before typing starts; letters per second
+    const OVERRUN = 1.5;                       // most the clock will wait, in seconds, for a narrator still speaking
     const buildSubtitle = (text) => {
       sub.textContent = "";
       chars = [];
@@ -324,7 +325,7 @@
     };
     const typeSubtitle = (beat) => {
       const since = tl.time - beat.at;
-      sub.style.opacity = since > beat.dur - 0.4 ? 0 : 1;
+      sub.style.opacity = since > beat.dur - 0.4 && !BC.narrating() ? 0 : 1;
       const progress = BC.reducedMotion ? 1 : (since - TYPE_DELAY) / typingFor;
       const count = BC.typedCount(schedule, progress);
       while (shown < count) chars[shown++].classList.add("on");
@@ -336,6 +337,7 @@
         // Type for at most ~65% of the beat so the line can be read before it fades.
         typingFor = Math.max(0.5, Math.min(beat.dur * 0.65 - TYPE_DELAY, chars.length / TYPE_RATE));
         card.classList.toggle("show", !!beat.card);
+        spoken = false; held = 0;
         if (beat.sfx) BC.sfx[beat.sfx]?.();
         if (beat.music) BC.audio.cueMusic(true);
       },
@@ -343,7 +345,12 @@
     });
     const frame = (now) => {
       const dt = Math.min(0.05, (now - last) / 1000); last = now;
-      tl.update(dt);
+      const beat = tl.beat();
+      // The narrator starts with the first letters; if still speaking as the beat closes, let the picture ease to a near stop.
+      let rate = 1;
+      if (beat && !spoken && tl.time - beat.at >= TYPE_DELAY) { spoken = true; if (beat.voice) BC.narrate(beat.voice); }
+      if (beat && BC.narrating() && tl.time >= beat.at + beat.dur - 0.5 && held < OVERRUN) { held += dt; rate = 0.3; }
+      tl.update(dt * rate);
       if (finished) return;
       if (tl.beat()) typeSubtitle(tl.beat());
       scene.draw(g, tl, dt, BC.reducedMotion);
@@ -352,7 +359,7 @@
     tl.start();
     raf = requestAnimationFrame(frame);
     $("#intro .skip").onclick = () => { BC.sfx.click(); finish(); };
-    return () => { finished = true; cancelAnimationFrame(raf); card.classList.remove("show"); };
+    return () => { finished = true; cancelAnimationFrame(raf); card.classList.remove("show"); BC.cancelNarration(); };
   };
 
   // BC Main Menu: icon tints per tribe, and what is carved into each slab.
