@@ -280,7 +280,10 @@ async function main() {
     await page.click(".warband-btn"); await screen("warband");
     assert.deepEqual(await page.evaluate(() => BC.save.burns), []);
     await page.evaluate(() => localStorage.setItem("bc-tribes-save-v1", "{broken"));
-    await page.reload({ waitUntil: "networkidle0" }); await screen("intro");
+    await page.reload({ waitUntil: "networkidle0" });
+    // First run with sound on: loading waits for one gesture so the soundtrack can start.
+    await page.waitForSelector("#loading .begin-prompt:not(.hidden)");
+    await page.keyboard.press("Enter"); await screen("intro");
     await page.click("#intro .skip"); await screen("menu");
     assert.equal(await page.$eval("#menu .start-btn", el => el.disabled), true);
     assert.deepEqual(await page.evaluate(() => BC.save.progress), { offense: 0, defense: 0, greed: 0 });

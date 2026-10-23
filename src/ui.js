@@ -202,24 +202,83 @@
   addEventListener("resize", hideTip);
 
   // -------------------------------------------------------------- loading --
+  const LOAD_STAGES = [[0, "Rousing the tribes"], [0.3, "Awakening thirty warriors"], [0.6, "Lighting the totems"], [0.9, "The crown is watching"]];
+  const LOAD_MIN_FIRST = 2600, LOAD_MIN_RETURN = 600;   // ms the screen stays up, so it is seen rather than flashed
+
+  // A pixel brazier that burns brighter as the loading bar fills.
+  function drawBrazier(g, t, p) {
+    g.clearRect(0, 0, 48, 56);
+    g.fillStyle = "#1a1210"; g.fillRect(19, 44, 10, 8); g.fillRect(13, 51, 22, 5);
+    for (let y = 0; y < 8; y++) { const w = 14 + y * 2; g.fillStyle = y === 0 ? "#DAA520" : y < 3 ? "#4a3220" : "#2a1c12"; g.fillRect(24 - w / 2, 36 + y, w, 1); }
+    const coals = ["#ff4500", "#ff8a1f", "#8B0000"];
+    for (let i = 0; i < 9; i++) { g.fillStyle = coals[i % 3]; g.globalAlpha = 0.45 + 0.55 * p * (0.6 + 0.4 * Math.sin(t * 4 + i)); g.fillRect(17 + i * 1.6 | 0, 35, 2, 1); }
+    g.globalAlpha = 1;
+    const count = 8 + Math.round(p * 46), height = 5 + p * 26, size = 2 + p * 3;
+    for (let i = 0; i < count; i++) {
+      const h = (t * 0.9 + i * 0.173) % 1, sway = Math.sin(i * 12.9 + t * 3) * (5 + p * 3) * h;
+      const r = Math.max(1, Math.round((1 - h) * size));
+      const rgb = h < 0.3 ? "255,236,140" : h < 0.65 ? "255,130,30" : "200,30,10";
+      g.fillStyle = `rgba(${rgb},${(1 - h) * (0.35 + p * 0.65)})`;
+      g.fillRect(Math.round(24 + sway - r / 2), Math.round(35 - h * height), r, r);
+    }
+  }
+
   function boot() {
-    const tip = $("#loading .tip");
-    let ti = 0;
-    tip.textContent = BC.TIPS[0];
-    const tipTimer = setInterval(() => { ti = (ti + 1) % BC.TIPS.length; tip.textContent = BC.TIPS[ti]; }, 2600);
-    BC.loadAssets((p) => {
-      $("#loading .progress-fill").style.width = (p * 100) + "%";
-      $("#loading .claw").style.left = `calc(${p * 100}% - 11px)`;
-    }).then(() => {
-      const face = $("#loading .emblem-face");
-      face.append(h("img", { class: "px", src: BC.iconURL("bases:" + (S().tribe || "offense"), 0, 64) }));
-      setTimeout(() => { clearInterval(tipTimer); show(S().seenIntro ? "menu" : "intro", true); }, 700);
-    }).catch((err) => {
+    const tip = $("#loading .tip"), screen = $("#loading"), bar = $("#loading .progress");
+    const stageText = $("#loading .load-stage"), prompt = $("#loading .begin-prompt"), emblem = $("#loading .emblem");
+    const g = $("#loading .brazier").getContext("2d");
+    const tips = BC.TIPS.map(text => [Math.random(), text]).sort((x, y) => x[0] - y[0]).map(x => x[1]);
+    let ti = 0, real = 0, shown = 0, loaded = false, failed = false, raf, last = performance.now();
+    const started = last, minimum = S().seenIntro ? LOAD_MIN_RETURN : LOAD_MIN_FIRST;
+    tip.textContent = tips[0];
+    const tipTimer = setInterval(() => { ti = (ti + 1) % tips.length; tip.textContent = tips[ti]; }, 3200);
+
+    // First-run players tap once so the soundtrack is allowed to play from the start.
+    const awaitGesture = () => new Promise(resolve => {
+      const { sound, masterVolume } = S().settings;
+      if (S().seenIntro || !sound || !masterVolume || BC.audio.isUnlocked()) return resolve();
+      screen.classList.add("awaiting");
+      prompt.classList.remove("hidden");
+      const go = (e) => {
+        if (e.type === "keydown" && ["Shift", "Control", "Alt", "Meta", "Tab"].includes(e.key)) return;
+        removeEventListener("pointerdown", go, true); removeEventListener("keydown", go, true);
+        prompt.classList.add("hidden"); screen.classList.remove("awaiting");
+        resolve();
+      };
+      addEventListener("pointerdown", go, true); addEventListener("keydown", go, true);
+    });
+
+    const frame = (now) => {
+      const dt = Math.min(0.05, (now - last) / 1000); last = now;
+      // The bar follows real loading but never outruns the minimum display time.
+      const target = Math.min(real, (now - started) / minimum);
+      shown += (target - shown) * Math.min(1, dt * 7);
+      if (target >= 1 && shown > 0.995) shown = 1;
+      const pct = Math.round(shown * 100);
+      $(".progress-fill", screen).style.width = pct + "%";
+      $(".claw", screen).style.left = `calc(${pct}% - 11px)`;
+      bar.setAttribute("aria-valuenow", pct);
+      emblem.style.setProperty("--p", shown.toFixed(3));
+      stageText.textContent = LOAD_STAGES.filter(([from]) => shown >= from).at(-1)[1] + "…";
+      drawBrazier(g, BC.reducedMotion ? 0 : (now - started) / 1000, shown);
+      if (shown >= 1 && loaded) { finish(); return; }
+      if (!failed) raf = requestAnimationFrame(frame);
+    };
+    const finish = async () => {
+      stageText.textContent = "";
+      await awaitGesture();
+      clearInterval(tipTimer);
+      setTimeout(() => show(S().seenIntro ? "menu" : "intro", true), 350);
+    };
+    Promise.all([BC.loadAssets((p) => { real = p; }), S().seenIntro ? null : BC.loadIntroArt()]).then(() => { loaded = true; real = 1; }).catch((err) => {
+      failed = true;
+      cancelAnimationFrame(raf);
       clearInterval(tipTimer);
       tip.textContent = location.protocol === "file:" && err.name === "SecurityError"
         ? "Open this game through a local server: run ./bc-start in the game folder, then use the browser window it opens."
         : String(err.message || err);
     });
+    raf = requestAnimationFrame(frame);
   }
 
   // ------------------------------------------------------- screen inits --
@@ -228,38 +287,31 @@
   SCREENS.intro = () => {
     const cv = $("#intro-canvas"), g = cv.getContext("2d");
     const sub = $("#intro .subtitle");
-    let line = 0, t = 0, raf, subtitleTimer, last = performance.now();
-    const drops = Array.from({ length: 60 }, () => ({ x: Math.random() * 240, y: Math.random() * 135, v: 60 + Math.random() * 60 }));
-    const setLine = () => { sub.style.opacity = 0; subtitleTimer = setTimeout(() => { sub.textContent = BC.STORY[line] || ""; sub.style.opacity = 1; }, BC.reducedMotion ? 0 : 300); };
-    setLine();
-    const timer = setInterval(() => { line++; if (line >= BC.STORY.length) finish(); else setLine(); }, 3600);
-    const finish = () => { S().seenIntro = true; BC.persist(); show("menu", true); };
+    let raf, subtitleTimer, last = performance.now(), finished = false;
+    BC.loadIntroArt();
+    const scene = BC.IntroScene.create({ makeCanvas: (w, h) => Object.assign(document.createElement("canvas"), { width: w, height: h }) });
+    const finish = () => { if (finished) return; finished = true; S().seenIntro = true; BC.persist(); show("menu", true); };
+    const tl = BC.createTimeline(BC.INTRO, {
+      onBeat: (beat) => {
+        sub.style.opacity = 0;
+        clearTimeout(subtitleTimer);
+        subtitleTimer = setTimeout(() => { sub.textContent = beat.text; sub.style.opacity = 1; }, BC.reducedMotion ? 0 : 300);
+        if (beat.sfx) BC.sfx[beat.sfx]?.();
+        if (beat.music) BC.audio.cueMusic(true);
+      },
+      onEnd: finish,
+    });
     const frame = (now) => {
-      const dt = (now - last) / 1000; last = now; t += dt;
-      g.fillStyle = "#070203"; g.fillRect(0, 0, 240, 135);
-      // the river
-      for (let y = 85; y < 135; y += 2) {
-        const k = (y - 85) / 50;
-        g.fillStyle = `rgb(${60 + k * 60},${5 + k * 4},${8})`;
-        g.fillRect(0, y, 240, 2);
-        g.fillStyle = "rgba(255,80,80,0.25)";
-        for (let x = (t * 20 + y * 7) % 18; x < 240; x += 18) g.fillRect(x, y, 5, 1);
-      }
-      // collectors on the bank, a lone figure in the water
-      g.fillStyle = "#000";
-      for (let i = 0; i < 4; i++) { const x = 150 + i * 16; g.fillRect(x, 66, 6, 19); g.fillRect(x + 1, 61, 4, 5); g.fillRect(x + 6, 70, 8, 2); }
-      const sink = Math.min(1, t / 14);
-      g.fillRect(70, 84 + sink * 10, 5, 10 - sink * 10); g.fillRect(71, 80 + sink * 12, 3, 4);
-      if (line >= 3) { // the tribes gather
-        for (let i = 0; i < Math.min(12, (t - 10.8) * 3); i++) BC.drawFrame(g, "bases:" + ["offense", "defense", "greed"][i % 3], 0, 6 + i * 12, 52 + (i % 2) * 6, 0.5);
-      }
-      g.strokeStyle = "rgba(160,160,180,0.35)";
-      for (const d of drops) { d.y += d.v * dt; if (d.y > 135) { d.y = -5; d.x = Math.random() * 240; } g.beginPath(); g.moveTo(d.x, d.y); g.lineTo(d.x - 1, d.y + 4); g.stroke(); }
+      const dt = Math.min(0.05, (now - last) / 1000); last = now;
+      tl.update(dt);
+      if (finished) return;
+      scene.draw(g, tl, dt, BC.reducedMotion);
       raf = requestAnimationFrame(frame);
     };
+    tl.start();
     raf = requestAnimationFrame(frame);
     $("#intro .skip").onclick = () => { BC.sfx.click(); finish(); };
-    return () => { cancelAnimationFrame(raf); clearInterval(timer); clearTimeout(subtitleTimer); };
+    return () => { finished = true; cancelAnimationFrame(raf); clearTimeout(subtitleTimer); };
   };
 
   // BC Main Menu: icon tints per tribe, and what is carved into each slab.

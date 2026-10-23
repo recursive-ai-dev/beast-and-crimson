@@ -304,6 +304,7 @@
     win: () => { [392, 523, 659, 784].forEach((f, i) => tone(f, 0.6, "triangle", 0.12, null, i * 0.15)); sfx.drums(); },
     lose: () => { [392, 330, 262, 196].forEach((f, i) => tone(f, 0.7, "sawtooth", 0.06, null, i * 0.22)); },
     click: () => tone(600, 0.05, "square", 0.04),
+    thunder: () => { noise(1.6, 0.22, 0, 60); tone(52, 1.8, "sawtooth", 0.1, 0.5); tone(38, 2.2, "sine", 0.3, 0.6, 0.1); },
   };
 
   // Tribe ambience (BC Main Menu: "ambient sounds that match the tribe's aesthetic").
@@ -347,7 +348,9 @@
       g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + 1.2);
       o.connect(g).connect(out); o.start(t); o.stop(t + 1.3);
     }, every));
-    if (tribe === "offense") {          // fire pits: low roar + crackle
+    if (tribe === "intro") {            // the river in the rain: downpour, current, a dark hum
+      loopNoise("bandpass", 3200, 0.5, 0.2); loopNoise("lowpass", 260, 0.8, 0.3); drone(41, 0.05);
+    } else if (tribe === "offense") {   // fire pits: low roar + crackle
       loopNoise("lowpass", 300, 0.7, 0.35); drone(49, 0.05);
       timers.push(setInterval(() => { if (Math.random() < 0.6) noise(0.03, 0.05 + Math.random() * 0.05, 0, 2500, out); }, 140));
     } else if (tribe === "defense") {   // river through the forest + wind

@@ -272,13 +272,16 @@
     "The Collector King waits in Spirit Vale. He does not hurry.",
   ];
 
-  const STORY = [
-    "The leader's tax collectors came at the end of the harvest.",
-    "They drowned the ones who could not pay — your expecting wife among them.",
-    "You buried nothing. The river kept everything.",
-    "Now the tribes gather behind you: village by village, town by town, city by city.",
-    "The common folk against the crown. Beast and crimson.",
+  // The intro cut scene, on one clock (see src/intro.js). `sfx` names a BC.sfx cue,
+  // `music` brings the menu theme in under the scene. Beat `i` is shot `i` in src/intro-scene.js.
+  const INTRO = [
+    { at: 0, dur: 4, text: "The leader's tax collectors came at the end of the harvest." },
+    { at: 4, dur: 4, text: "They drowned the ones who could not pay — your expecting wife among them." },
+    { at: 8, dur: 4, sfx: "thunder", text: "You buried nothing. The river kept everything." },
+    { at: 12, dur: 4.5, sfx: "drums", music: true, text: "Now the tribes gather behind you: village by village, town by town, city by city." },
+    { at: 16.5, dur: 4, text: "The common folk against the crown. Beast and crimson." },
   ];
+  const STORY = INTRO.map(beat => beat.text);
 
   // Balance knobs (tuned with the headless simulation, see README).
   const TUNE = {
@@ -291,6 +294,6 @@
   };
 
   window.BC = Object.assign(window.BC || {}, {
-    TUNE, LORE, ACHIEVEMENTS, TRIBES, UNITS, ENEMIES, STAGES, BURN_TIERS, BURN_STATS, TIER_UP, TIER_DOWN, TIPS, STORY,
+    TUNE, LORE, ACHIEVEMENTS, TRIBES, UNITS, ENEMIES, STAGES, BURN_TIERS, BURN_STATS, TIER_UP, TIER_DOWN, TIPS, INTRO, STORY,
   });
 })();

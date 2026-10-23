@@ -6,7 +6,7 @@
   const CROSSFADE = 1.4, MIX_FADE = 0.18;
   const tracks = new Map(), ramps = new WeakMap();
   let ctx = null, buses = null, unlocked = false, away = false, resuming = false;
-  let scene = "loading", wanted = null, paused = false, speaking = false;
+  let scene = "loading", wanted = null, paused = false, speaking = false, musicCue = false;
   const settings = () => BC.save.settings;
   const hidden = () => away || document.hidden;
   const audible = () => unlocked && !hidden() && settings().sound && settings().masterVolume > 0;
@@ -131,7 +131,7 @@
     mix(hidden() ? 0 : MIX_FADE);
     syncMusic();
     if (!audible() || !settings().narration) BC.cancelNarration();
-    BC.ambience(audible() && scene !== "loading" && scene !== "intro" ? BC.save.tribe || "offense" : null, hidden());
+    BC.ambience(!audible() || scene === "loading" ? null : scene === "intro" ? "intro" : BC.save.tribe || "offense", hidden());
   }
 
   function wake() {
@@ -159,8 +159,18 @@
     setScene(id) {
       if (scene !== id) BC.cancelNarration();
       scene = id;
+      musicCue = false;
       wanted = id === "battle" ? "battle" : ["menu", "campaign", "warband", "result"].includes(id) ? "menu" : null;
       paused = false;
+      sync();
+    },
+    /** True once a gesture has let the browser play sound. */
+    isUnlocked: () => unlocked,
+    /** Let the intro bring the menu theme in before the menu itself opens. */
+    cueMusic(value) {
+      if (scene !== "intro" || musicCue === value) return;
+      musicCue = value;
+      wanted = value ? "menu" : null;
       sync();
     },
     setPaused(value) { paused = value; mix(0.35); },
