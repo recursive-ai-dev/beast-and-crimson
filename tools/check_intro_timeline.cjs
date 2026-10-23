@@ -99,3 +99,22 @@ for (const [i, b] of beats.entries()) {
 }
 console.log("[OK] Intro timeline: ordering, stalled frames, seek, pause, next, end-once");
 console.log("[OK] Intro story: one shot per beat, emphasis markup, typewriter schedule");
+
+// The recap: short, silent (no narration), and every beat names a real scene shot.
+{
+  const recap = BC.INTRO_RECAP;
+  assert.ok(recap.length >= 2);
+  const end = recap.at(-1).at + recap.at(-1).dur;
+  assert.ok(end >= 4 && end <= 7, `recap runs about five seconds (got ${end})`);
+  recap.forEach((b, i) => {
+    assert.ok(Number.isInteger(b.shot) && b.shot >= 0 && b.shot < BC.IntroScene.SHOTS, `recap beat ${i} has a valid shot`);
+    assert.ok(!b.voice, "recap is not narrated");
+    assert.equal(b.text.split("*").length % 2, 1, `recap beat ${i} has balanced emphasis`);
+    if (i) assert.ok(b.at >= recap[i - 1].at + recap[i - 1].dur - 1e-9);
+  });
+  const log = []; const tl = BC.createTimeline(recap, { onBeat: (_, i) => log.push(i) });
+  tl.start(); tl.next(); tl.next();
+  assert.deepEqual(log, [0, 1, 2]);
+  tl.next();
+  assert.ok(tl.done, "advancing past the last beat ends the story");
+}

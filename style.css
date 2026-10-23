@@ -113,6 +113,12 @@ img.px { image-rendering: pixelated; }
 .cine-bar { position: absolute; left: 0; right: 0; height: 14%; background: #000; z-index: 2;
   background-image: repeating-linear-gradient(90deg, transparent 0 40px, rgba(139,0,0,.25) 40px 42px, transparent 42px 60px, rgba(218,165,32,.12) 60px 61px); }
 .cine-bar.top { top: 0; } .cine-bar.bottom { bottom: 0; display: flex; align-items: center; justify-content: center; }
+#intro .skip { width: 52px; height: 52px; padding: 0; font: 600 12px/1 var(--heading, inherit); letter-spacing: .08em; text-transform: uppercase; cursor: pointer; touch-action: manipulation; -webkit-user-select: none; user-select: none; }
+#intro .skip .skip-ring { position: absolute; inset: -4px; width: calc(100% + 8px); height: calc(100% + 8px); transform: rotate(-90deg); pointer-events: none; }
+#intro .skip .skip-ring circle { fill: none; stroke: #ff6a52; stroke-width: 3; stroke-linecap: round; stroke-dasharray: 126; stroke-dashoffset: calc(126 * (1 - var(--hold, 0))); filter: drop-shadow(0 0 4px #ff2a2a); }
+#intro .skip:focus-visible { outline: 2px solid #fff; outline-offset: 4px; }
+#intro .skip-hint { position: absolute; top: calc(3% + 60px); right: 2%; z-index: 3; margin: 0; max-width: 40vw; text-align: right; color: #d9b977; font-size: 12px; letter-spacing: .04em; text-shadow: 0 1px 3px #000; opacity: 0; transition: opacity .6s; pointer-events: none; }
+#intro .skip-hint.show { opacity: .85; }
 .subtitle { color: #fff; text-shadow: 0 0 8px #ff2a2a, 0 0 2px #ff2a2a; font-size: clamp(13px, 2.6vw, 22px); margin: 0 6%; text-align: center; transition: opacity .35s; }
 .subtitle .w { white-space: nowrap; }
 .subtitle .ch { opacity: 0; }

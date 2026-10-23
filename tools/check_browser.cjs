@@ -284,7 +284,11 @@ async function main() {
     // First run with sound on: loading waits for one gesture so the soundtrack can start.
     await page.waitForSelector("#loading .begin-prompt:not(.hidden)");
     await page.keyboard.press("Enter"); await screen("intro");
-    await page.click("#intro .skip"); await screen("menu");
+    await page.mouse.move(0, 0);
+    const skip = await page.$("#intro .skip"), box = await skip.boundingBox();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down(); await new Promise(r => setTimeout(r, 1100)); await page.mouse.up();   // hold to skip
+    await screen("menu");
     assert.equal(await page.$eval("#menu .start-btn", el => el.disabled), true);
     assert.deepEqual(await page.evaluate(() => BC.save.progress), { offense: 0, defense: 0, greed: 0 });
     // Storage failures are visible without blocking play.

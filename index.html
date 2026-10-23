@@ -56,7 +56,11 @@
     <div class="title-card" aria-hidden="true"><div class="tc-tribes"></div></div>
     <div class="intro-stage"><canvas id="intro-canvas" width="480" height="270"></canvas></div>
     <div class="cine-bar bottom"><p class="subtitle"></p></div>
-    <button class="skip rune-btn" title="Skip story" aria-label="Skip story">&#x16DF;</button>
+    <button class="skip rune-btn" title="Hold to skip the story" aria-label="Skip story (hold, or press and hold Escape)">
+      <svg class="skip-ring" viewBox="0 0 44 44" aria-hidden="true"><circle cx="22" cy="22" r="20"/></svg>
+      <span class="skip-label">Skip</span>
+    </button>
+    <p class="skip-hint" aria-hidden="true">Tap to advance &middot; hold to skip</p>
   </section>
 
   <!-- Main menu -->

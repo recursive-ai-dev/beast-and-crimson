@@ -286,6 +286,12 @@
     { at: 16.5, dur: 4.5, voice: "The common folk against the crown.", text: "The common folk against the crown, and the *Collector King* who wears it." },
     { at: 21, dur: 4, card: true, voice: "Three tribes. One rebellion.", text: "Three tribes. One *rebellion*." },
   ];
+  // The short cut for players back after a long gap: three beats, no narration. `shot` picks the scene.
+  const INTRO_RECAP = [
+    { at: 0, dur: 1.8, shot: 2, sfx: "thunder", text: "The river kept *everything*." },
+    { at: 1.8, dur: 1.8, shot: 3, sfx: "drums", music: true, text: "The tribes *gather* against the crown." },
+    { at: 3.6, dur: 2, shot: 5, card: true, text: "Three tribes. One *rebellion*." },
+  ];
   const STORY = INTRO.map(beat => beat.text);
 
   // Balance knobs (tuned with the headless simulation, see README).
@@ -299,6 +305,6 @@
   };
 
   window.BC = Object.assign(window.BC || {}, {
-    TUNE, LORE, ACHIEVEMENTS, TRIBES, UNITS, ENEMIES, STAGES, BURN_TIERS, BURN_STATS, TIER_UP, TIER_DOWN, TIPS, INTRO, STORY,
+    TUNE, LORE, ACHIEVEMENTS, TRIBES, UNITS, ENEMIES, STAGES, BURN_TIERS, BURN_STATS, TIER_UP, TIER_DOWN, TIPS, INTRO, INTRO_RECAP, STORY,
   });
 })();

@@ -461,9 +461,9 @@
       shots,
       /** Draw the current shot. `tl` is the intro timeline; the beat index is the shot index. */
       draw(g, tl, dt, calm = false) {
-        const index = clamp(tl.index, 0, shots.length - 1), shot = shots[index];
+        const index = clamp(tl.beat()?.shot ?? tl.index, 0, shots.length - 1), shot = shots[index];
         if (index !== last) { last = index; smoke.length = embers.length = 0; }
-        const local = tl.local(), t = tl.time, since = tl.since(index);
+        const local = tl.local(), t = tl.time, since = tl.since(tl.index);
         const cam = calm ? [0, 0, 1] : shot.cam[0].map((v, i) => lerp(v, shot.cam[1][i], ease(local)));
         g.save();
         g.imageSmoothingEnabled = false;

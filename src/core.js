@@ -6,7 +6,7 @@
   // ---------------------------------------------------------------- save --
   const KEY = "bc-tribes-save-v1";
   const DEFAULT = () => ({
-    v: 1, tribe: null, seenIntro: false, nextId: 1,
+    v: 1, tribe: null, seenIntro: false, lastPlayed: 0, nextId: 1,
     progress: { offense: 0, defense: 0, greed: 0 },
     endless: { offense: 0, defense: 0, greed: 0 },
     lineup: {}, burns: [], equipped: {}, ash: 0, bestiary: {}, newUnits: [],
@@ -20,6 +20,7 @@
     const src = record(raw), out = DEFAULT();
     out.tribe = Object.hasOwn(BC.TRIBES, src.tribe) ? src.tribe : null;
     out.seenIntro = src.seenIntro === true;
+    out.lastPlayed = count(src.lastPlayed);
     for (const tribe of Object.keys(out.progress)) {
       out.progress[tribe] = count(record(src.progress)[tribe], BC.STAGES.length);
       out.endless[tribe] = count(record(src.endless)[tribe]);

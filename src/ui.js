@@ -203,6 +203,8 @@
 
   // -------------------------------------------------------------- loading --
   const LOAD_STAGES = [[0, "Rousing the tribes"], [0.3, "Awakening thirty warriors"], [0.6, "Lighting the totems"], [0.9, "The crown is watching"]];
+  const RECAP_AFTER = 7 * 24 * 3600 * 1000;   // absence after which the story recap plays on launch
+  let introRecap = false;                      // set for the next intro: short recap instead of the full story
   const LOAD_MIN_FIRST = 2600, LOAD_MIN_RETURN = 600;   // ms the screen stays up, so it is seen rather than flashed
 
   // A pixel brazier that burns brighter as the loading bar fills.
@@ -229,6 +231,9 @@
     const g = $("#loading .brazier").getContext("2d");
     const tips = BC.TIPS.map(text => [Math.random(), text]).sort((x, y) => x[0] - y[0]).map(x => x[1]);
     let ti = 0, real = 0, shown = 0, loaded = false, failed = false, raf, last = performance.now();
+    // Players back after a long gap get the short recap before the menu.
+    const away = S().seenIntro && S().lastPlayed > 0 && Date.now() - S().lastPlayed > RECAP_AFTER;
+    S().lastPlayed = Date.now(); BC.persist();
     const started = last, minimum = S().seenIntro ? LOAD_MIN_RETURN : LOAD_MIN_FIRST;
     tip.textContent = tips[0];
     const tipTimer = setInterval(() => { ti = (ti + 1) % tips.length; tip.textContent = tips[ti]; }, 3200);
@@ -268,9 +273,10 @@
       stageText.textContent = "";
       await awaitGesture();
       clearInterval(tipTimer);
-      setTimeout(() => show(S().seenIntro ? "menu" : "intro", true), 350);
+      introRecap = away;
+      setTimeout(() => show(S().seenIntro && !away ? "menu" : "intro", true), 350);
     };
-    Promise.all([BC.loadAssets((p) => { real = p; }), S().seenIntro ? null : BC.loadIntroArt()]).then(() => { loaded = true; real = 1; }).catch((err) => {
+    Promise.all([BC.loadAssets((p) => { real = p; }), S().seenIntro && !away ? null : BC.loadIntroArt()]).then(() => { loaded = true; real = 1; }).catch((err) => {
       failed = true;
       cancelAnimationFrame(raf);
       clearInterval(tipTimer);
@@ -291,6 +297,7 @@
     BC.loadIntroArt();
     const scene = BC.IntroScene.create({ makeCanvas: (w, h) => Object.assign(document.createElement("canvas"), { width: w, height: h }) });
     const finish = () => { if (finished) return; finished = true; S().seenIntro = true; BC.persist(); show("menu", true); };
+    const recap = introRecap; introRecap = false;
 
     // The three tribes, named: shown on the title-card beat.
     const card = $("#intro .title-card"), tribesEl = $(".tc-tribes", card);
@@ -331,7 +338,7 @@
       while (shown < count) chars[shown++].classList.add("on");
     };
 
-    const tl = BC.createTimeline(BC.INTRO, {
+    const tl = BC.createTimeline(recap ? BC.INTRO_RECAP : BC.INTRO, {
       onBeat: (beat) => {
         buildSubtitle(beat.text);
         // Type for at most ~65% of the beat so the line can be read before it fades.
@@ -343,8 +350,52 @@
       },
       onEnd: finish,
     });
+    // Skipping: tap / Space / Enter / → moves to the next beat; holding Esc or the Skip button ends the story.
+    const HOLD = 0.8, STEP_GUARD = 220;
+    const root = $("#intro"), skipBtn = $(".skip", root), hint = $(".skip-hint", root);
+    const holders = new Set();
+    let holdT = 0, releasedAt = 1, lastStep = 0;
+    const setHold = (v) => skipBtn.style.setProperty("--hold", v.toFixed(3));
+    const skipAll = () => { BC.sfx.click(); finish(); };
+    const advance = () => {
+      const now = performance.now();
+      if (finished || now - lastStep < STEP_GUARD) return;
+      lastStep = now;
+      BC.cancelNarration(); BC.sfx.click();
+      tl.next();
+    };
+    const hold = (src, on) => { if (on) holders.add(src); else holders.delete(src); };
+    const onKeyDown = (e) => {
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      if (e.key === "Escape") { e.preventDefault(); hold("key", true); return; }
+      if ([" ", "Enter", "ArrowRight"].includes(e.key) && !e.repeat && !e.target.closest?.("button")) { e.preventDefault(); advance(); }
+    };
+    const onKeyUp = (e) => { if (e.key === "Escape") hold("key", false); };
+    const onBlur = () => holders.clear();
+    const onVisibility = () => {
+      // A hidden tab pauses the story; the narrator repeats the current line on return.
+      tl.pause(document.hidden);
+      if (document.hidden) { BC.cancelNarration(); holders.clear(); }
+      else { last = performance.now(); spoken = false; }
+    };
+    const release = () => { releasedAt = holdT; hold("ptr", false); skipBtn.blur(); };   // blur: Space afterwards advances, not skips
+    skipBtn.onpointerdown = () => { releasedAt = 1; hold("ptr", true); };
+    skipBtn.onpointerup = release; skipBtn.onpointerleave = release; skipBtn.onpointercancel = release;
+    // A keyboard activation (detail 0) skips outright; a quick tap only advances.
+    skipBtn.onclick = (e) => { if (e.detail === 0) skipAll(); else if (releasedAt < 0.3) advance(); };
+    root.onclick = (e) => { if (!e.target.closest(".skip")) advance(); };
+    addEventListener("keydown", onKeyDown); addEventListener("keyup", onKeyUp); addEventListener("blur", onBlur);
+    document.addEventListener("visibilitychange", onVisibility);
+    const touch = matchMedia("(pointer: coarse)").matches;
+    hint.textContent = touch ? "Tap to advance · hold Skip to end" : "Space or click to advance · hold Esc to skip";
+    hint.classList.add("show");
+    const hintTimer = setTimeout(() => hint.classList.remove("show"), 5000);
+
     const frame = (now) => {
       const dt = Math.min(0.05, (now - last) / 1000); last = now;
+      holdT = holders.size ? holdT + dt : 0;
+      setHold(Math.min(1, holdT / HOLD));
+      if (holdT >= HOLD) { skipAll(); return; }
       const beat = tl.beat();
       // The narrator starts with the first letters; if still speaking as the beat closes, let the picture ease to a near stop.
       let rate = 1;
@@ -358,8 +409,14 @@
     };
     tl.start();
     raf = requestAnimationFrame(frame);
-    $("#intro .skip").onclick = () => { BC.sfx.click(); finish(); };
-    return () => { finished = true; cancelAnimationFrame(raf); card.classList.remove("show"); BC.cancelNarration(); };
+    return () => {
+      finished = true; cancelAnimationFrame(raf); clearTimeout(hintTimer);
+      card.classList.remove("show"); hint.classList.remove("show"); setHold(0);
+      removeEventListener("keydown", onKeyDown); removeEventListener("keyup", onKeyUp); removeEventListener("blur", onBlur);
+      document.removeEventListener("visibilitychange", onVisibility);
+      root.onclick = skipBtn.onclick = skipBtn.onpointerdown = skipBtn.onpointerup = skipBtn.onpointerleave = skipBtn.onpointercancel = null;
+      BC.cancelNarration();
+    };
   };
 
   // BC Main Menu: icon tints per tribe, and what is carved into each slab.
@@ -1269,7 +1326,7 @@
     }
     $(".close", m).onclick = () => closeDialog(m);
     $(".close-icon", m).onclick = () => closeDialog(m);
-    $(".replay-intro", m).onclick = () => { closeDialog(m); show("intro", true); };
+    $(".replay-intro", m).onclick = () => { closeDialog(m); introRecap = false; show("intro", true); };
     $(".replay-tutorial", m).disabled = !S().tribe;
     $(".replay-tutorial", m).onclick = () => {
       BC.resetTutorial(); closeDialog(m); startBattle(0, false);
