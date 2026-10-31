@@ -170,6 +170,9 @@ def main():
         fh.write("window.BC_ASSETS = " + json.dumps(manifest, indent=1) + ";\n")
     n = sum(len(v) for v in manifest.values() if isinstance(v, dict))
     print(f"wrote {n} assets to {ASSETS}")
+    sys.path.insert(0, HERE)
+    from build_inline_sprites import build as build_inline_sprites
+    print(f"bundled {build_inline_sprites()} sprites for file:// play")
 
 
 if __name__ == "__main__":

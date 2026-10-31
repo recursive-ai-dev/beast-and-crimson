@@ -9,6 +9,10 @@
   let scene = "loading", wanted = null, paused = false, speaking = false, musicCue = false;
   const settings = () => BC.save.settings;
   const hidden = () => away || document.hidden;
+  // Browsers feed Web Audio silence from media loaded over file://. There the element's own
+  // volume carries the same mix, following the envelopes `fade` has already scheduled.
+  const directMedia = window.location?.protocol === "file:";
+  let directTimer = null;
   const audible = () => unlocked && !hidden() && settings().sound && settings().masterVolume > 0;
   const wantsMusic = () => audible() && settings().musicVolume > 0 && wanted;
 
@@ -30,6 +34,16 @@
     p.setValueAtTime(from, now);
     p.linearRampToValueAtTime(value, now + seconds);
     ramps.set(node, { from, to: value, start: now, end: now + seconds });
+  }
+
+  function level(node) {
+    const ramp = ramps.get(node);
+    if (!ramp) return node.gain.value;
+    const span = ramp.end - ramp.start;
+    return span > 0 ? ramp.from + (ramp.to - ramp.from) * Math.min(1, Math.max(0, (ctx.currentTime - ramp.start) / span)) : ramp.to;
+  }
+  function directMix() {
+    for (const track of tracks.values()) track.element.volume = Math.min(1, level(buses.master) * level(buses.music) * level(track.gain));
   }
 
   function mix(seconds = MIX_FADE) {
@@ -96,9 +110,9 @@
       const element = new Audio(TRACKS[wanted]), gain = ctx.createGain();
       element.preload = "auto"; element.loop = true;
       gain.gain.value = 0;
-      const source = ctx.createMediaElementSource(element);
-      source.connect(gain).connect(buses.music);
-      track = { id: wanted, element, source, gain, pending: false, failed: false, stopTimer: null };
+      if (directMedia) { element.volume = 0; directTimer ??= setInterval(directMix, 40); }
+      else ctx.createMediaElementSource(element).connect(gain).connect(buses.music);
+      track = { id: wanted, element, gain, pending: false, failed: false, stopTimer: null };
       tracks.set(wanted, track);
       element.addEventListener("error", () => {
         track.failed = true;

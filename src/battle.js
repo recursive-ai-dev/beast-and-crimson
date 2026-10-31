@@ -9,6 +9,8 @@
   const BASE_X = 34;           // player totem centre
   const KEEP_X = 446;          // enemy keep centre
   const GOLD_CAP = 2500;
+  const STEP = 1 / 60;         // the simulation always advances by this, so results cannot depend on the display
+  const MAX_FRAME = 0.1;       // the most real time one frame may simulate; slower devices play in slow motion
 
   class Battle {
     constructor(canvas, opts) {
@@ -22,6 +24,7 @@
       this.onEnd = opts.onEnd;
       this.onHud = opts.onHud || (() => {});
       this.onAction = opts.onAction || (() => {});
+      this.onWave = opts.onWave || (() => {});
       this.toast = opts.toast || (() => {});
       this.announce = opts.announce || this.toast;
       this.autocast = !!opts.autocast;
@@ -50,7 +53,11 @@
       this.paused = false;
       this.over = false;
       this.nextId = 1;
-      this.seed = 1234567 + (opts.stage || 0) * 977;
+      // Gameplay and cosmetics draw from separate streams, so a floating number can never change an outcome.
+      this.seed = opts.seed ?? Math.floor(Math.random() * 4294967296);
+      this.random = BC.makeRng(this.seed);
+      this.fxRandom = BC.makeRng(this.seed ^ 0x9E3779B9);
+      this._accum = 0;
       this.slots = this.lineup.map(name => ({ name, stats: BC.unitStats(name, opts.tribe), cd: 0 }));
       this.stats = { kills: 0, killedByType: {}, goldEarned: 0, deployed: 0, abilities: 0, lost: 0, dmg: 0, baseDmg: 0, bossKilled: false, waves: 1 };
       this.embers = [];
@@ -79,7 +86,7 @@
       });
     }
 
-    rnd(n) { this.seed = (this.seed * 1103515245 + 12345) & 0x7fffffff; return n === undefined ? this.seed / 0x7fffffff : Math.floor((this.seed / 0x7fffffff) * n); }
+    rnd(n) { const u = this.random(); return n === undefined ? u : Math.floor(u * n); }
 
     // ------------------------------------------------------------ spawning --
     deploy(i) {
@@ -128,7 +135,7 @@
     mk(o) {
       const e = Object.assign({
         id: this.nextId++, hp: o.base.hp, atkT: 0.3, anim: "idle", animT: 0, status: {}, buffs: [],
-        shield: 0, kills: 0, yOff: Math.round(this.rnd() * 14 - 9), dead: false, flash: 0, age: 0,
+        shield: 0, kills: 0, yOff: Math.round(this.fxRandom() * 14 - 9), dead: false, flash: 0, age: 0,
       }, o);
       e.s = Object.assign({}, e.base);
       this.ents.push(e);
@@ -137,11 +144,24 @@
 
     // ---------------------------------------------------------------- loop --
     loop(now) {
-      const rawDt = Math.min(0.05, (now - this._last) / 1000);
+      if (this._destroyed) return;
+      const rawDt = Math.min(MAX_FRAME, (now - this._last) / 1000);
       this._last = now;
-      if (!this.paused && !this.over) this.update(rawDt * (this.speed || 1));
+      if (!this.paused && !this.over) {
+        this.advance(rawDt * (this.speed || 1));
+        this.onHud(this);
+      }
       this.draw();
       this._raf = requestAnimationFrame((t) => this.loop(t));
+    }
+
+    /** Run as many whole simulation steps as the elapsed time has earned. */
+    advance(dt) {
+      this._accum += dt;
+      while (this._accum >= STEP && !this.over) {
+        this._accum -= STEP;
+        this.update(STEP);
+      }
     }
 
     update(dt) {
@@ -186,7 +206,6 @@
         else return this.finish(true);
       }
       if (this.player.hp <= 0) return this.finish(false);
-      this.onHud(this);
     }
 
     advanceEndlessWave(keepBroken) {
@@ -195,6 +214,8 @@
       this.waveT = 42;
       this.stats.waves = this.wave;
       this.stageIdx = this.wave - 1;
+      this.midBossSpawned = this.bossSpawned = false;   // each biome's champion returns with it
+      this.onWave(this.wave);
       const st = BC.STAGES[(this.wave - 1) % BC.STAGES.length];
       const allKeys = Object.keys(BC.ENEMIES).filter(k => k !== "king");
       const pool = st.pool.concat([allKeys[this.wave % allKeys.length]]);
@@ -350,7 +371,7 @@
             const t = this.nearestEnemy(e, e.s.range + 30);
             if (t) {
               e.castT = e.def.castCd;
-              this.status(t, "burn", 3, e.s.dmg * 0.4);
+              this.status(t, "burn", 3, e.s.dmg * 0.4, e);
               if (t.ability) t.abT = Math.min(t.s.abspd, (t.abT || 0) + 2.5);
               this.text(t.x, LANE_Y - 44 + t.yOff, "HERESY!", "#ff4500", 0.9);
             }
@@ -397,7 +418,7 @@
       if (e.kind === "decoy") return;
       e.atkT -= dt;
       if (e.atkT > 0) return;
-      e.atkT = 1 / Math.max(0.1, e.s.atkspd);
+      e.atkT += 1 / Math.max(0.1, e.s.atkspd);   // keeping the overshoot makes the attack rate exact
       e.anim = "attack"; e.animT = 0;
       const ranged = e.s.range > 40;
       if (foe) {
@@ -426,7 +447,7 @@
       t.hp -= d;
       t.flash = 0.12;
       if (src && src.side === "player") this.stats.dmg += d;
-      if (d >= 1) this.text(t.x + (this.rnd() * 10 - 5), LANE_Y - 34 + t.yOff, Math.round(d), t.side === "player" ? "#ff6b6b" : "#fff3d6");
+      if (d >= 1) this.text(t.x + (this.fxRandom() * 10 - 5), LANE_Y - 34 + t.yOff, Math.round(d), t.side === "player" ? "#ff6b6b" : "#fff3d6");
       if (t.hp <= 0) this.kill(t, src);
       return d;
     }
@@ -469,8 +490,9 @@
     cast(u, auto, quiet = false) {
       if (!u.ability || u.abT > 0 || u.dead || this.paused || this.over) return false;
       this._src = u.ability.name;
+      this._caster = u;
       const r = u.ability.run(this, u);
-      this._src = null;
+      this._src = this._caster = null;
       if (r === false) { if (!auto && !quiet) this.toast(this.abilityFailure(u)); return false; }
       u.abT = u.s.abspd;
       u.anim = "attack"; u.animT = 0;
@@ -550,7 +572,13 @@
     hit(src, t, amt, raw) { return this.dealDamage(src, t, amt, raw); }
     heal(t, amt) { if (t.dead || amt <= 0) return; const h = Math.min(amt, t.s.hp - t.hp); t.hp += h; if (h >= 1) this.text(t.x, LANE_Y - 38 + t.yOff, "+" + Math.round(h), "#7dff8a"); }
     shield(t, amt) { t.shield = Math.max(t.shield, amt); }
-    status(t, kind, dur, v) { t.status[kind] = { t: dur, v: v || 0 }; }
+    // The strongest value and the longest duration stand, and a damage tick in progress carries on.
+    status(t, kind, dur, v = 0, src = this._caster || null) {
+      const cur = t.status[kind];
+      if (!cur) { t.status[kind] = { t: dur, v, acc: 0, src }; return; }
+      cur.t = Math.max(cur.t, dur);
+      if (v >= cur.v) { cur.v = v; cur.src = src || cur.src; }
+    }
     // Recasting the same ability refreshes its buff instead of stacking it.
     buff(t, stat, v, dur, add) {
       const src = this._src || null;
@@ -761,5 +789,5 @@
   }
 
   BC.Battle = Battle;
-  BC.BATTLE_W = W; BC.BATTLE_H = H;
+  BC.BATTLE_W = W; BC.BATTLE_H = H; BC.BATTLE_STEP = STEP;
 })();

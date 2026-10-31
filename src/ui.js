@@ -26,8 +26,14 @@
   systemMotion.addEventListener("change", syncMotion);
   syncMotion();
   const syncSaveStatus = () => {
-    const text = BC.saveStatus === "unavailable" ? "Saving unavailable · progress lasts this session" : BC.saveStatus === "recovered" ? "Unreadable save · a fresh journey awaits" : "Progress saved on this device";
-    document.querySelectorAll(".save-status").forEach(el => { el.textContent = text; el.classList.toggle("save-warning", ["unavailable", "recovered"].includes(BC.saveStatus)); });
+    const notices = {
+      newer: "Save from a newer version · this session will not be kept",
+      restored: "Save was damaged · restored from your last launch",
+      recovered: "Unreadable save · a fresh journey awaits",
+    };
+    const unavailable = BC.saveStatus === "unavailable";
+    const text = unavailable ? "Saving unavailable · progress lasts this session" : notices[BC.saveNotice] || "Progress saved on this device";
+    document.querySelectorAll(".save-status").forEach(el => { el.textContent = text; el.classList.toggle("save-warning", unavailable || !!BC.saveNotice); });
   };
   addEventListener("bc-save", syncSaveStatus);
 
@@ -78,16 +84,24 @@
   });
 
   // ------------------------------------------------------------ screens --
-  let current = "loading";
   let screenCleanup = null;
   let transitioning = false;
-  function show(id, transition) {
-    if (transitioning) return;
+  let queuedNav = null;
+  /**
+   * Go to a screen. While the curtain moves, repeated player input is ignored, but a `required`
+   * request (the end of the story, battle results) waits its turn: dropping it would strand the
+   * player. `prepare` runs only if the request goes ahead, just before the new screen is built.
+   */
+  function show(id, transition, { prepare, required = false } = {}) {
+    if (transitioning) {
+      if (required) queuedNav = { id, transition, prepare };
+      return;
+    }
     const swap = () => {
+      prepare?.();
       while (dialogs.length) closeDialog(dialogs.at(-1).el, false);
       if (screenCleanup) { screenCleanup(); screenCleanup = null; }
       document.querySelectorAll(".screen").forEach(s => s.classList.toggle("active", s.id === id));
-      current = id;
       document.body.dataset.screen = id;
       BC.audio.setScene(id);
       const init = SCREENS[id];
@@ -106,9 +120,25 @@
     setTimeout(() => {
       swap();
       c.className = "sweep-out";
-      setTimeout(() => { c.className = ""; transitioning = false; }, 480);
+      setTimeout(() => {
+        c.className = ""; transitioning = false;
+        const next = queuedNav;
+        queuedNav = null;
+        if (next) show(next.id, next.transition, { prepare: next.prepare });
+      }, 480);
     }, 470);
   }
+
+  // Another tab saved. The data is already current; bring what is on show up to date as well,
+  // unless the player is in the middle of something, which keeps its view until the next screen.
+  let staleScreen = false;
+  function refreshScreen() {
+    const id = document.body.dataset.screen;
+    staleScreen = document.hidden || transitioning || dialogs.length > 0;
+    if (!staleScreen && ["menu", "campaign", "warband"].includes(id)) show(id);
+  }
+  addEventListener("bc-save-external", () => { syncMotion(); syncAudioControls(); BC.audio.sync(); syncSaveStatus(); refreshScreen(); });
+  document.addEventListener("visibilitychange", () => { if (staleScreen && !document.hidden) refreshScreen(); });
 
   function applyTribeVars(tribe) {
     const t = BC.TRIBES[tribe];
@@ -134,8 +164,9 @@
   }
 
   // tooltips
-  let tipTarget = null, tipPinned = false, tipFeedback = "";
+  let tipTarget = null, tipPinned = false, tipFeedback = "", tipHideTimer = null;
   function hideTip() {
+    clearTimeout(tipHideTimer);
     tipPinned = false;
     tipFeedback = "";
     $("#tooltip").classList.add("hidden");
@@ -183,6 +214,7 @@
     tt.style.left = Math.max(8, Math.min(innerWidth - tt.offsetWidth - 8, r.left)) + "px";
     tt.style.top = Math.max(8, Math.min(innerHeight - tt.offsetHeight - 8, commandTop > tt.offsetHeight + 10 ? commandTop - tt.offsetHeight - 6 : r.bottom + 6)) + "px";
   };
+  const hideTipAfter = (ms) => { clearTimeout(tipHideTimer); tipHideTimer = setTimeout(hideTip, ms); };
   const updateTip = (el, text) => {
     if (el.dataset.tip === text) return;
     el.dataset.tip = text;
@@ -281,9 +313,7 @@
       failed = true;
       cancelAnimationFrame(raf);
       clearInterval(tipTimer);
-      tip.textContent = location.protocol === "file:" && err.name === "SecurityError"
-        ? "Open this game through a local server: run ./bc-start in the game folder, then use the browser window it opens."
-        : String(err.message || err);
+      tip.textContent = String(err.message || err);
     });
     raf = requestAnimationFrame(frame);
   }
@@ -297,7 +327,7 @@
     let raf, last = performance.now(), finished = false;
     BC.loadIntroArt();
     const scene = BC.IntroScene.create({ makeCanvas: (w, h) => Object.assign(document.createElement("canvas"), { width: w, height: h }) });
-    const finish = () => { if (finished) return; finished = true; S().seenIntro = true; BC.persist(); menuReveal = true; show("menu", true); };
+    const finish = () => { if (finished) return; finished = true; S().seenIntro = true; BC.persist(); menuReveal = true; show("menu", true, { required: true }); };
     const recap = introRecap; introRecap = false;
 
     // The three tribes, named: shown on the title-card beat.
@@ -430,7 +460,7 @@
     slabs.innerHTML = "";
     const start = $("#menu .start-btn"), hint = $("#menu .hint");
     const select = (id) => {
-      S().tribe = id; BC.persist(); applyTribeVars(id);
+      applyTribeVars(id);
       slabs.querySelectorAll(".slab").forEach(s => { s.classList.toggle("sel", s.dataset.id === id); s.setAttribute("aria-pressed", String(s.dataset.id === id)); });
       document.querySelectorAll("#menu .backdrop .art").forEach(a => a.classList.toggle("on", a.classList.contains(id)));
       start.disabled = false;
@@ -440,7 +470,12 @@
       const t = BC.TRIBES[id];
       const cleared = S().progress[id];
       const el = h("button", { type: "button", class: "slab", "data-id": id, "aria-pressed": "false", style: `--glow:${ICON_COLOR[id]}`,
-        onclick: () => { const fresh = S().tribe !== id; BC.sfx.chime(); select(id); if (fresh) BC.narrate(t.name + ". " + t.threat); },
+        onclick: () => {
+          const fresh = S().tribe !== id;
+          BC.sfx.chime();
+          S().tribe = id; BC.persist(); select(id);
+          if (fresh) BC.narrate(t.name + ". " + t.threat);
+        },
         ondblclick: () => show("campaign", true),
         onpointermove: (e) => { const r = e.currentTarget.getBoundingClientRect(); e.currentTarget.style.setProperty("--tilt", ((e.clientX - r.left) / r.width - 0.5) * 14 + "deg"); } },
         h("div", { class: "sigil" }, h("img", { class: "px", src: BC.iconURL("bases:" + id, 0, 96) })),
@@ -703,10 +738,11 @@
   // ------------------------------------------------------------- warband --
   let wbSel = null, burnFilter = "all", warbandReturn = "campaign";
   function openWarband(from, focus) {
-    warbandReturn = from;
-    if (focus) wbSel = focus;
-    burnFilter = "all";
-    show("warband", true);
+    show("warband", true, { prepare: () => {
+      warbandReturn = from;
+      if (focus) wbSel = focus;
+      burnFilter = "all";
+    } });
   }
   SCREENS.warband = () => {
     const tribe = S().tribe;
@@ -935,9 +971,8 @@
   // -------------------------------------------------------------- battle --
   let battle = null, lastStage = 0, lastEndless = false, keyHandler = null;
   function startBattle(i, endless) {
-    lastStage = i;
-    lastEndless = !!endless;
-    show("battle", true);
+    if (!endless && !(BC.STAGES[i] && i <= S().progress[S().tribe])) return;   // only ever an unlocked stage
+    show("battle", true, { prepare: () => { lastStage = i; lastEndless = !!endless; } });
   }
 
   const AB_KEYS = ["Q", "W", "E", "A", "S"];
@@ -955,20 +990,25 @@
     toastEl.textContent = "";
     let toastT = null;
     const toast = (msg) => { toastEl.textContent = msg; toastEl.classList.add("show"); clearTimeout(toastT); toastT = setTimeout(() => toastEl.classList.remove("show"), 1800); };
+    // A success introduces its control once: after that, a tooltip would sit on the battlefield
+    // through every tap of a real-time fight. A failure explains itself for longer, then leaves too.
+    const introduced = new Set();
     const command = (button, action) => {
       if (!battle || battle.paused || battle.over) return;
       const ok = action();
-      // Keep failure feedback readable even when the details cover the toast.
+      if (ok && introduced.has(button)) { hideTip(); return; }
+      if (ok) introduced.add(button);
       showTip({ target: button, feedback: ok ? "" : toastEl.textContent }, true);
+      hideTipAfter(ok ? 1600 : 5000);
     };
     const hazard = $(".battle-hazard", hud), arrival = $(".arrival-warning", hud);
     let arrivalUntil = 0;
     arrival.textContent = "";
     arrival.classList.add("hidden");
     const announce = msg => { arrival.textContent = msg; arrivalUntil = performance.now() + 5000; };
-    hazard.onclick = () => showTip({ target: hazard }, true);
+    hazard.onclick = () => { showTip({ target: hazard }, true); hideTipAfter(6000); };
     $(".keep-name", hud).textContent = lastEndless ? "The Endless Levy — Wave 1" : st.name;
-    $(".objective", hud).textContent = lastEndless ? "Survive the waves. Raze keeps to mend." : (st.boss ? "Slay the Collector King. Raze his throne." : "Raze the enemy keep.");
+    $(".objective", hud).textContent = lastEndless ? "Survive the waves. Raze keeps to mend." : (st.boss ? "Raze the throne. The Collector King will defend it." : "Raze the enemy keep.");
 
     const spBtn = $(".spell-btn", hud);
     $("img", spBtn).src = BC.iconURL("bases:" + tribe, 0, 64);
@@ -993,8 +1033,10 @@
     // Unavailable actions stay focusable so their requirements can be inspected.
     // The battle validates every action before changing state.
     const inspectUnit = e => {
-      const button = e.target.closest(".ubtn, .cast-btn, .unit-slot");
-      if (button && battle && !battle.paused && !battle.over) showTip({ target: button }, true);
+      const slot = e.target.closest(".unit-slot");
+      if (!slot || e.target.closest(".ubtn, .cast-btn") || !battle || battle.paused || battle.over) return;
+      showTip({ target: slot }, true);
+      hideTipAfter(6000);
     };
     btnWrap.addEventListener("click", inspectUnit);
     const castBtns = [];
@@ -1024,6 +1066,7 @@
     const guide = $(".battle-guide", hud);
     const renderGuide = (B) => {
       const step = S().tutorial.battle;
+      guiding = guiding && ["deploy", "ability", "spell"].includes(step);   // another tab may have finished it
       guide.classList.toggle("hidden", !guiding || B.paused || B.over);
       $(".autocast", pause).disabled = guiding;
       $(".tutorial-auto-note", pause).classList.toggle("hidden", !guiding);
@@ -1069,6 +1112,10 @@
       tribe, stage: lastStage, endless: lastEndless, lineup: line,
       autocast: !guiding && S().settings.autocast, speed: S().settings.speed || 1, toast, announce,
       onEnd: (r) => endBattle(r),
+      onWave: (wave) => {
+        // Recorded as it happens, so a closed tab cannot forfeit the run's best wave.
+        if (wave > (S().endless[tribe] || 0)) { S().endless[tribe] = wave; BC.persist(); }
+      },
       onAction: (action, B) => {
         if (guiding && BC.advanceTutorial(action)) {
           if (S().tutorial.battle === "done") { guiding = false; toast("Battle basics learned. Win to earn your first Runic Burns!"); }
@@ -1245,7 +1292,7 @@
     }
     BC.persist();
     lastResult = r;
-    show("result", true);
+    show("result", true, { required: true });
   }
 
   SCREENS.result = () => {

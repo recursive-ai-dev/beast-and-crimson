@@ -195,6 +195,17 @@
   <div id="rotate-hint">A wider battlefield awaits in landscape.</div>
 </div>
 
+<div id="fatal" class="hidden" role="alertdialog" aria-modal="true" aria-labelledby="fatal-title" aria-describedby="fatal-text" tabindex="-1">
+  <div class="tablet">
+    <h3 id="fatal-title">The ritual faltered</h3>
+    <p id="fatal-text">Something went wrong and the game has stopped. Your saved progress has not been touched, and reloading usually fixes this.</p>
+    <button class="molten fatal-reload">Reload the game</button>
+    <button class="molten fatal-save">Download a copy of my save</button>
+    <details class="fatal-details"><summary>Error details</summary><pre class="fatal-message"></pre></details>
+  </div>
+</div>
+
+<script src="src/errors.js"></script>
 <script src="assets/manifest.js"></script>
 <script src="src/data.js"></script>
 <script src="src/core.js"></script>

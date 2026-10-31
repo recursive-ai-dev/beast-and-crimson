@@ -1,13 +1,22 @@
 #!/usr/bin/env node
-// Optional browser regressions. Requires Puppeteer in the tooling environment.
-// PUPPETEER_MODULE may point to an installed module; BROWSER_BIN overrides Chrome.
-// Set BC_SCREENSHOTS to a directory to capture the tested screens.
+// Browser regressions. Run `npm install` first, then `npm run test:browser` (or `npx playwright install chromium`
+// if no browser is present). PLAYWRIGHT_MODULE or PUPPETEER_MODULE may point to another install; BROWSER_BIN
+// overrides Chrome. Set BC_SCREENSHOTS to a directory to capture the tested screens.
+// Options: --clarity (tooltip and notice checks only), --flows (navigation, save and failure checks only).
 const assert = require("node:assert/strict");
 const fs = require("node:fs/promises");
 const http = require("node:http");
 const path = require("node:path");
-const playwright = process.env.PLAYWRIGHT_MODULE ? require(process.env.PLAYWRIGHT_MODULE) : null;
-const puppeteer = playwright ? null : require(process.env.PUPPETEER_MODULE || "puppeteer");
+const loadDriver = () => {
+  if (process.env.PLAYWRIGHT_MODULE) return { playwright: require(process.env.PLAYWRIGHT_MODULE) };
+  if (process.env.PUPPETEER_MODULE) return { puppeteer: require(process.env.PUPPETEER_MODULE) };
+  for (const name of ["playwright", "puppeteer"]) {
+    try { return { [name]: require(name) }; } catch (error) { if (error.code !== "MODULE_NOT_FOUND") throw error; }
+  }
+  console.error("No browser driver found. Run: npm install && npx playwright install chromium");
+  process.exit(1);
+};
+const { playwright, puppeteer } = loadDriver();
 const root = path.resolve(__dirname, "..");
 const types = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".png": "image/png", ".ttf": "font/ttf", ".mp3": "audio/mpeg" };
 const server = http.createServer(async (req, res) => {
@@ -25,9 +34,12 @@ async function main() {
   let browser;
   try {
     browser = await (playwright ? playwright.chromium : puppeteer).launch({ headless: true, executablePath: process.env.BROWSER_BIN || undefined });
-    await require("./check_clarity.cjs")(browser, `http://127.0.0.1:${server.address().port}/index.html`, !!playwright);
+    const url = `http://127.0.0.1:${server.address().port}/index.html`;
+    if (process.argv.includes("--flows")) { await require("./check_flows.cjs")(browser, url, !!playwright); return; }
+    await require("./check_clarity.cjs")(browser, url, !!playwright);
     if (process.argv.includes("--clarity")) return;
-    await require("./check_audio.cjs")(browser, `http://127.0.0.1:${server.address().port}/index.html`, !!playwright);
+    await require("./check_audio.cjs")(browser, url, !!playwright);
+    await require("./check_flows.cjs")(browser, url, !!playwright);
     const page = await browser.newPage(), errors = [];
     if (playwright) {
       page.setViewport = size => page.setViewportSize(size);
@@ -64,8 +76,10 @@ async function main() {
       await screenshot("briefing-desktop");
       await page.click("#campaign .brief .btns button:last-child"); await screen("battle");
     };
+    // Stops animation frames so assertions do not race them. The battle stays live, unlike destroy().
+    const freeze = () => page.evaluate(() => { const b = BC.currentBattle; cancelAnimationFrame(b._raf); b.loop = () => {}; });
     const win = async () => {
-      await page.evaluate(() => { const b = BC.currentBattle; b.destroy(); b.enemy.hp = 0; b.update(0.01); });
+      await page.evaluate(() => { const b = BC.currentBattle; cancelAnimationFrame(b._raf); b.loop = () => {}; b.enemy.hp = 0; b.update(0.01); });
       await screen("result");
     };
     const state = () => page.evaluate(() => {
@@ -75,7 +89,7 @@ async function main() {
 
     await page.goto(`http://127.0.0.1:${server.address().port}/index.html`, { waitUntil: "networkidle0" });
     await screen("menu"); await screenshot("menu-desktop"); await begin();
-    await page.evaluate(() => BC.currentBattle.destroy()); // Step simulation explicitly so assertions do not race animation frames.
+    await freeze(); // Step simulation explicitly so assertions do not race animation frames.
     assert.equal(await page.evaluate(() => BC.save.tutorial.battle), "deploy");
     assert.equal(await page.evaluate(() => BC.currentBattle.autocast), false);
     assert.equal(await page.$$eval(".cast-btn", els => els.every(el => el.getAttribute("aria-disabled") === "true" && el.textContent.includes("Deploy first"))), true);
@@ -165,7 +179,7 @@ async function main() {
     console.log("[OK] Save migration, replay, persistent skip and no uncaught browser errors");
 
     // Keyboard navigation must remain available while battle shortcuts still work.
-    await page.evaluate(() => BC.currentBattle.destroy());
+    await freeze();
     const speed = await page.evaluate(() => BC.currentBattle.speed);
     await page.keyboard.press("Tab");
     assert.equal(await page.evaluate(() => BC.currentBattle.speed), speed, "Tab must navigate without changing speed");
@@ -250,7 +264,7 @@ async function main() {
       await page.click(".mission");
       await inBounds(".brief .parchment", true);
       await page.click(".brief .btns button:last-child"); await screen("battle");
-      await page.evaluate(() => BC.currentBattle.destroy());
+      await freeze();
       await inBounds(".unit-slot", true); await inBounds(".spell-btn", true); await inBounds(".hud-right", true);
       await screenshot(`battle-${width}`);
       if (width === 390) {
@@ -279,7 +293,7 @@ async function main() {
     assert.equal(await page.evaluate(() => BC.lineup("greed").length), 5);
     await page.click(".warband-btn"); await screen("warband");
     assert.deepEqual(await page.evaluate(() => BC.save.burns), []);
-    await page.evaluate(() => localStorage.setItem("bc-tribes-save-v1", "{broken"));
+    await page.evaluate(() => { localStorage.setItem("bc-tribes-save-v1", "{broken"); localStorage.removeItem("bc-tribes-save-v1.backup"); });
     await page.reload({ waitUntil: "networkidle0" });
     // First run with sound on: loading waits for one gesture so the soundtrack can start.
     await page.waitForSelector("#loading .begin-prompt:not(.hidden)");

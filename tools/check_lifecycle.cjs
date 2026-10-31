@@ -10,8 +10,8 @@ let nextTimer = 0, voices = [], spoken = [];
 const g = new Proxy({ createLinearGradient: () => ({ addColorStop: noop }), createRadialGradient: () => ({ addColorStop: noop }) }, { get: (o, k) => o[k] ?? noop });
 const canvas = () => ({ getContext: () => g, addEventListener: noop, removeEventListener: noop });
 const env = {
-  console, Math, performance: { now: () => 0 },
-  localStorage: { getItem: () => null, setItem: noop },
+  console, Math, performance: { now: () => 0 }, addEventListener: noop,
+  localStorage: { getItem: () => null, setItem: noop, removeItem: noop },
   document: { hidden: false, createElement: canvas },
   requestAnimationFrame: () => 1, cancelAnimationFrame: noop,
   setTimeout: fn => { timers.set(++nextTimer, fn); return nextTimer; },

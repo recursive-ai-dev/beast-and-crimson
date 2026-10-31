@@ -74,6 +74,13 @@ img.px { image-rendering: pixelated; }
 .gear { background: none; border: 0; color: #9b7d4b; font-size: 30px; filter: drop-shadow(0 0 3px #000); line-height: 1; }
 .gear.corner { position: absolute; top: 10px; right: 14px; z-index: 5; }
 
+/* ---------- last-resort error panel ---------- */
+#fatal { position: fixed; inset: 0; z-index: 200; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(0,0,0,.88); overflow: auto; }
+#fatal .tablet { width: min(460px, 100%); margin: auto; }
+#fatal p { margin: 0 0 14px; font-size: 16px; line-height: 1.4; }
+.fatal-details { margin-top: 12px; font-size: 13px; }
+.fatal-message { max-height: 30vh; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; padding: 8px; background: #0b0505; border-radius: 4px; user-select: text; -webkit-user-select: text; }
+
 /* ---------- curtain transition ---------- */
 #curtain {
   position: absolute; inset: 0; z-index: 100; pointer-events: none; transform: translateX(-105%);

@@ -8,65 +8,18 @@
 "use strict";
 
 const assert = require("node:assert/strict");
-const noop = () => {};
-const mockCtx = () => ({
-  save: noop, restore: noop, translate: noop, scale: noop, drawImage: noop,
-  fillRect: noop, clearRect: noop, beginPath: noop, moveTo: noop, lineTo: noop,
-  fill: noop, stroke: noop, ellipse: noop, fillText: noop,
-  createLinearGradient: () => ({ addColorStop: noop }),
-  createRadialGradient: () => ({ addColorStop: noop }),
-});
-const mockCanvas = () => ({
-  width: 480, height: 270,
-  getContext: mockCtx,
-  addEventListener: noop,
-  removeEventListener: noop,
-  toDataURL: () => "data:image/png;base64,",
-  getBoundingClientRect: () => ({ left: 0, top: 0, width: 480, height: 270 }),
-});
-
-global.window = global;
-global.localStorage = {
-  _d: {},
-  getItem(k) { return this._d[k] || null; },
-  setItem(k, v) { this._d[k] = String(v); },
-};
-global.document = {
-  createElement: () => mockCanvas(),
-  querySelector: () => null,
-  querySelectorAll: () => [],
-  addEventListener: noop,
-  documentElement: { style: { setProperty: noop } },
-  body: { dataset: {} },
-};
-global.addEventListener = noop;
-global.removeEventListener = noop;
-global.dispatchEvent = noop;
-global.performance = { now: () => 0 };
-global.requestAnimationFrame = () => 1;
-global.cancelAnimationFrame = noop;
-global.setTimeout = (fn) => { fn(); return 1; };
-global.clearTimeout = noop;
-
-require("../assets/manifest.js");
-require("../src/data.js");
-require("../src/core.js");
-require("../src/audio.js");
-require("../src/battle.js");
-
-const BC = global.BC;
+const { BC, mockCanvas, noop } = require("./headless.cjs");
 
 function runStage(tribe, stageIdx, lineup, endless = false, maxTime = 240, seedOffset = 0) {
   let result = null;
   const b = new BC.Battle(mockCanvas(), {
-    tribe, stage: stageIdx, endless, lineup, autocast: true,
+    tribe, stage: stageIdx, endless, lineup, autocast: true, seed: 1234567 + stageIdx * 977 + seedOffset,
     onEnd: (r) => { result = r; },
   });
-  b.seed += seedOffset;
   let deployTick = 0;
   while (!b.over && b.t < maxTime) {
-    b.update(0.05);
-    deployTick += 0.05;
+    b.update(BC.BATTLE_STEP);
+    deployTick += BC.BATTLE_STEP;
     if (deployTick >= 0.4) {
       deployTick = 0;
       const idx = b.rnd(b.slots.length);

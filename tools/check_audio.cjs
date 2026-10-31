@@ -98,6 +98,8 @@ module.exports = async function checkAudio(browser, url, playwright) {
     // Narration events duck the mix; a cancelled older utterance cannot unduck a newer one.
     await page.evaluate(() => {
       const spoken = []; window.audioTest.spoken = spoken;
+      // Real browsers refuse a fake SpeechSynthesisVoice, so the utterance is stubbed with the engine.
+      window.SpeechSynthesisUtterance = function (text) { this.text = text; };
       Object.defineProperty(window, "speechSynthesis", { configurable: true, value: {
         cancel() {}, getVoices() { return [{ name: "Daniel", lang: "en-GB" }]; }, speak(u) { spoken.push(u); u.onstart(); },
       } });
@@ -118,7 +120,7 @@ module.exports = async function checkAudio(browser, url, playwright) {
     await play("battle"); await gain("music", 0.12);
     assert.equal(await page.evaluate(() => BC.currentBattle.paused), true);
     await page.click(".resume"); await gain("music", 0.4);
-    await page.evaluate(() => { const b = BC.currentBattle; b.destroy(); b.enemy.hp = 0; b.update(0.01); });
+    await page.evaluate(() => { BC.currentBattle.enemy.hp = 0; });
     await screen("result"); await play("menu");
     await page.waitForFunction(() => audioTest.tracks[1].paused && audioTest.tracks[1].currentTime === 0);
     // Seek near the end to verify actual MP3 looping without waiting three minutes.

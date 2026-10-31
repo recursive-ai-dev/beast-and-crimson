@@ -4,9 +4,10 @@
   const BC = window.BC;
 
   // ---------------------------------------------------------------- save --
-  const KEY = "bc-tribes-save-v1";
+  const KEY = "bc-tribes-save-v1", BACKUP_KEY = KEY + ".backup", DAMAGED_KEY = KEY + ".damaged";
+  const SAVE_VERSION = 1;
   const DEFAULT = () => ({
-    v: 1, tribe: null, seenIntro: false, lastPlayed: 0, nextId: 1,
+    v: SAVE_VERSION, tribe: null, seenIntro: false, lastPlayed: 0, nextId: 1,
     progress: { offense: 0, defense: 0, greed: 0 },
     endless: { offense: 0, defense: 0, greed: 0 },
     lineup: {}, burns: [], equipped: {}, ash: 0, bestiary: {}, newUnits: [],
@@ -60,18 +61,66 @@
     return out;
   }
   let save;
+  let readOnly = false;   // a save from a newer build: playable, but this build must not overwrite it
   BC.saveStatus = "ready";
-  try {
-    const stored = JSON.parse(localStorage.getItem(KEY) || "{}");
-    save = normalizeSave(stored);
+  BC.saveNotice = "";     // what happened to the save at launch ("restored", "recovered", "newer"); lasts the session
+  const parseSave = (text) => {
+    const stored = JSON.parse(text);
+    if (!stored || typeof stored !== "object" || Array.isArray(stored)) throw new SyntaxError("Not a save");
+    return stored;
+  };
+  const writeCopy = (key, text) => { try { localStorage.setItem(key, text); } catch (e) { /* a copy is best effort */ } };
+  const removeCopy = (key) => { try { localStorage.removeItem(key); } catch (e) { /* nothing to remove */ } };
+  function loadSave() {
+    let text;
+    try { text = localStorage.getItem(KEY); }
+    catch (e) { BC.saveStatus = "unavailable"; return normalizeSave({}); }
+    if (text === null) return normalizeSave({});
+    try {
+      const stored = parseSave(text);
+      if (stored.v > SAVE_VERSION) { readOnly = true; BC.saveNotice = "newer"; }
+      else writeCopy(BACKUP_KEY, text);
+      return normalizeSave(stored);
+    } catch (e) {
+      // Whatever cannot be read is kept, and the last good launch takes its place when there is one.
+      writeCopy(DAMAGED_KEY, text);
+      try {
+        const backup = parseSave(localStorage.getItem(BACKUP_KEY));
+        BC.saveNotice = "restored";
+        return normalizeSave(backup);
+      } catch (e2) {
+        BC.saveNotice = "recovered";
+        return normalizeSave({});
+      }
+    }
   }
-  catch (e) { save = DEFAULT(); BC.saveStatus = e instanceof SyntaxError ? "recovered" : "unavailable"; }
+  save = loadSave();
   const persist = () => {
-    try { localStorage.setItem(KEY, JSON.stringify(save)); BC.saveStatus = "saved"; }
-    catch (e) { BC.saveStatus = "unavailable"; }
+    if (readOnly) BC.saveStatus = "readonly";
+    else {
+      try { localStorage.setItem(KEY, JSON.stringify(save)); BC.saveStatus = "saved"; }
+      catch (e) { BC.saveStatus = "unavailable"; }
+    }
     if (typeof window.CustomEvent === "function") window.dispatchEvent(new CustomEvent("bc-save", { detail: BC.saveStatus }));
   };
-  const resetSave = () => { save = DEFAULT(); BC.save = save; persist(); };
+  // Another tab saved. Taking its progress means this tab can never write an older copy back over
+  // it. The chosen tribe stays per tab, so a battle or its rewards cannot change hands midway.
+  addEventListener("storage", (e) => {
+    if (e.key !== KEY || e.newValue === null) return;
+    let stored;
+    try { stored = parseSave(e.newValue); } catch (err) { return; }
+    if (stored.v > SAVE_VERSION) { readOnly = true; BC.saveNotice = "newer"; }
+    const tribe = save.tribe;
+    save = normalizeSave(stored);
+    if (tribe) save.tribe = tribe;
+    BC.save = save;
+    window.dispatchEvent(new CustomEvent("bc-save-external"));
+  });
+  const resetSave = () => {
+    readOnly = false; BC.saveNotice = "";
+    removeCopy(BACKUP_KEY); removeCopy(DAMAGED_KEY);
+    save = DEFAULT(); BC.save = save; persist();
+  };
 
   const tribeUnits = (tribe) => Object.keys(BC.UNITS).filter(n => BC.UNITS[n].tribe === tribe);
   const unlockedUnits = (tribe) => tribeUnits(tribe).slice(0, Math.min(10, 3 + save.progress[tribe]));
@@ -123,6 +172,14 @@
   function skipTutorial() { save.tutorial = { battle: "skipped", burn: "skipped" }; persist(); }
   function resetTutorial() { save.tutorial = DEFAULT().tutorial; persist(); }
 
+  /** mulberry32: exact 32-bit integer arithmetic with a period of 2^32. Returns draws in [0, 1). */
+  const makeRng = (seed) => () => {
+    seed = (seed + 0x6D2B79F5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+
   // --------------------------------------------------------- runic burns --
   function makeBurn(tier, rand, id = save.nextId++) {
     rand = rand || Math.random;
@@ -150,7 +207,7 @@
   function applyMod(stats, key, pct, isBuff) {
     const f = pct / 100;
     if (key === "cost") stats.cost = Math.round(stats.cost * (isBuff ? 1 - f : 1 + f));
-    else if (key === "abspd") stats.abspd = stats.abspd * (isBuff ? 1 / (1 + f) : 1 + f);
+    else if (key === "abspd") stats.abspd = stats.abspd / (isBuff ? 1 + f : 1 - f);   // a rate, stored as its cooldown
     else stats[key] = stats[key] * (isBuff ? 1 + f : 1 - f);
   }
 
@@ -214,12 +271,23 @@
 
   // -------------------------------------------------------------- assets --
   const images = {};
-  function loadAssets(onProgress) {
+  // Images read from disk taint a canvas, and iconURL could not export them, so file:// play
+  // takes its sprites from bundled data URLs. A server never needs that file.
+  const loadInlineSprites = () => new Promise(resolve => {
+    if (window.location?.protocol !== "file:" || window.BC_INLINE_SPRITES) return resolve();
+    const script = document.createElement("script");
+    script.src = "assets/sprites.inline.js";
+    script.onload = script.onerror = () => resolve();
+    document.head.append(script);
+  });
+  async function loadAssets(onProgress) {
     const M = window.BC_ASSETS;
-    if (!M) return Promise.reject(new Error("assets/manifest.js missing — run tools/build_sprites.py"));
+    if (!M) throw new Error("assets/manifest.js missing — run tools/build_sprites.py");
+    await loadInlineSprites();
+    const inline = window.BC_INLINE_SPRITES || {};
     const jobs = [];
     for (const group of ["units", "bases", "enemies", "tiles", "keeps", "props", "artifacts"]) {
-      for (const [k, v] of Object.entries(M[group] || {})) jobs.push([group + ":" + k, "assets/" + v.src]);
+      for (const [k, v] of Object.entries(M[group] || {})) jobs.push([group + ":" + k, inline[v.src] || "assets/" + v.src]);
     }
     let done = 0;
     return Promise.all(jobs.map(([key, src]) => new Promise((res) => {
@@ -256,6 +324,7 @@
 
   /** A frame as a data-URL canvas for DOM buttons. */
   const iconCache = {};
+  const BLANK_ICON = "data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==";
   function iconURL(key, frame, size) {
     const id = key + ":" + frame + ":" + size;
     if (iconCache[id]) return iconCache[id];
@@ -264,7 +333,8 @@
     const g = c.getContext("2d");
     g.imageSmoothingEnabled = false;
     drawFrame(g, key, frame, 0, 0, size / 32);
-    return (iconCache[id] = c.toDataURL());
+    try { return (iconCache[id] = c.toDataURL()); }
+    catch { return (iconCache[id] = BLANK_ICON); }   // a tainted canvas costs an icon, never the game
   }
 
   // --------------------------------------------------------------- audio --
@@ -419,7 +489,7 @@
 
   Object.assign(BC, {
     save, persist, resetSave, normalizeSave, tribeUnits, unlockedUnits, mercenaryUnits, lineup, addToLineup, fillLineup,
-    advanceTutorial, skipTutorial, resetTutorial,
+    advanceTutorial, skipTutorial, resetTutorial, makeRng,
     makeBurn, rollTier, unitStats, burnText, salvageBurn, fuseBurns, rerollBurn,
     images, loadAssets, loadStageArt, drawFrame, iconURL, sfx, ambience, narrate, narrating, cancelNarration,
   });

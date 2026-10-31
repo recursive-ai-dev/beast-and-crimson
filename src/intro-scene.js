@@ -21,7 +21,6 @@
   const ease = (t) => t * t * (3 - 2 * t);
   const rgb = (c, a = 1) => `rgba(${c[0]},${c[1]},${c[2]},${a})`;
   const mix = (a, b, t) => a.map((v, i) => Math.round(lerp(v, b[i], t)));
-  const rng = (seed) => () => { seed = (seed + 0x6D2B79F5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
 
   // Vertical gradient in 3px bands so the sky stays pixel-art rather than smooth.
   function sky(g, stops, y0 = -PADY, y1 = H + PADY) {
@@ -133,7 +132,7 @@
     // ------------------------------------------------------------ shot 0 --
     // Harvest dusk: a village on the river, collectors arriving down the road.
     function harvest() {
-      const r = rng(11);
+      const r = BC.makeRng(11);
       const far = layerCanvas(g => {
         sky(g, [[0, [26, 14, 48]], [0.45, [118, 38, 58]], [0.72, [226, 128, 62]], [1, [246, 190, 100]]]);
         stars(g, r, 40, 80); clouds(g, r, 7, 20, 100, "rgba(110,40,70,.55)");
@@ -195,7 +194,7 @@
     }
     // The bank: collectors with torches on the right, one lone figure going under at left.
     function drowning() {
-      const r = rng(23);
+      const r = BC.makeRng(23);
       const far = layerCanvas(g => {
         sky(g, [[0, [8, 10, 20]], [0.5, [24, 30, 48]], [1, [52, 56, 76]]]);
         clouds(g, r, 9, 10, 110, "rgba(20,24,40,.9)"); clouds(g, r, 5, 40, 120, "rgba(52,56,82,.5)");
@@ -256,7 +255,7 @@
 
     // ------------------------------------------------------------ shot 2 --
     function silence() {
-      const r = rng(37);
+      const r = BC.makeRng(37);
       const far = layerCanvas(g => {
         sky(g, [[0, [6, 8, 18]], [0.55, [18, 24, 42]], [1, [40, 46, 66]]]);
         clouds(g, r, 12, 6, 120, "rgba(14,18,32,.9)");
@@ -311,7 +310,7 @@
     ];
     const unitKey = (name) => "units:" + name;
     function gather() {
-      const r = rng(41);
+      const r = BC.makeRng(41);
       const far = layerCanvas(g => {
         sky(g, [[0, [30, 12, 30]], [0.4, [120, 36, 48]], [0.75, [232, 120, 70]], [1, [250, 190, 120]]]);
         clouds(g, r, 8, 30, 110, "rgba(130,40,60,.5)");
@@ -371,7 +370,7 @@
 
     // ------------------------------------------------------------ shot 4 --
     function crown() {
-      const r = rng(53);
+      const r = BC.makeRng(53);
       const far = layerCanvas(g => {
         sky(g, [[0, [16, 4, 10]], [0.5, [92, 14, 24]], [0.85, [190, 52, 32]], [1, [236, 110, 50]]]);
         clouds(g, r, 9, 20, 120, "rgba(40,6,14,.6)");
@@ -429,7 +428,7 @@
     // ------------------------------------------------------------ shot 5 --
     // Title card: embers rising from a black ridge. The DOM card with the tribe names sits on top.
     function tribesCard() {
-      const r = rng(67);
+      const r = BC.makeRng(67);
       const far = layerCanvas(g => {
         sky(g, [[0, [6, 2, 8]], [0.6, [40, 8, 18]], [1, [110, 24, 24]]]);
         stars(g, r, 50, 120); clouds(g, r, 6, 40, 150, "rgba(60,10,20,.5)");

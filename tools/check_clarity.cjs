@@ -43,7 +43,7 @@ module.exports = async function checkClarity(browser, url, playwright) {
   const begin = async () => {
     await page.click("#menu .start-btn"); await screen("campaign");
     await page.click(".mission"); await page.click(".brief .btns button:last-child"); await screen("battle");
-    await page.evaluate(() => BC.currentBattle.destroy());
+    await page.evaluate(() => { const b = BC.currentBattle; cancelAnimationFrame(b._raf); b.loop = () => {}; });
   };
   try {
     const seed = () => {
