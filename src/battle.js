@@ -610,7 +610,29 @@
       this.stats.goldEarned += got;
       if (!quiet && at && got >= 1) { this.text(at.x, LANE_Y - 46, "+" + Math.round(got) + "g", "#ffd700"); BC.sfx.coin(); }
     }
-    text(x, y, s, col, dur) { this.fx.push({ kind: "text", x, y, s: String(s), col, t: 0, dur: dur || 0.8 }); }
+    text(x, y, s, col, dur) {
+      const str = String(s);
+      const isNum = /^[-+]?\d+$/.test(str);
+      if (isNum) {
+        const val = parseInt(str, 10);
+        const sign = str.startsWith("+") ? "+" : "";
+        for (const f of this.fx) {
+          if (f.kind === "text" && f.num && f.col === col && f.t < 0.25 && Math.abs(f.x - x) < 16 && Math.abs(f.y - y) < 14) {
+            f.val += val;
+            f.s = (f.val >= 0 && sign ? "+" : "") + f.val;
+            f.t = 0;
+            return;
+          }
+        }
+      }
+      const texts = this.fx.filter(f => f.kind === "text");
+      if (texts.length >= 32) {
+        const victim = texts.find(f => f.num) || texts[0];
+        const idx = this.fx.indexOf(victim);
+        if (idx >= 0) this.fx.splice(idx, 1);
+      }
+      this.fx.push({ kind: "text", x, y, s: str, col, t: 0, dur: dur || 0.8, num: isNum, val: isNum ? parseInt(str, 10) : 0 });
+    }
 
     // -------------------------------------------------------------- input --
     onPointer(ev) {

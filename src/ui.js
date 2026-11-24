@@ -736,12 +736,11 @@
   BC.ASSETS_NAME = (id) => (window.BC_ASSETS.enemies[id] || {}).name || id;
 
   // ------------------------------------------------------------- warband --
-  let wbSel = null, burnFilter = "all", warbandReturn = "campaign";
+  let wbSel = null, warbandReturn = "campaign";
   function openWarband(from, focus) {
     show("warband", true, { prepare: () => {
       warbandReturn = from;
       if (focus) wbSel = focus;
-      burnFilter = "all";
     } });
   }
   SCREENS.warband = () => {
@@ -845,19 +844,32 @@
         h("strong", {}, "4 / 4 · Bind a Runic Burn"),
         h("p", {}, "Select a warrior, read a burn's buff and debuff below, then choose Equip. Each warrior holds one burn."),
         h("button", { class: "guide-skip", onclick: () => { S().tutorial.burn = "skipped"; BC.persist(); render(); } }, "Skip this tip")) : null;
-      const statRow = (k, label, fmt) => {
-        const a = base[k], b = cur[k];
-        const better = k === "cost" || k === "abspd" ? b < a - 1e-6 : b > a + 1e-6;
-        const worse = k === "cost" || k === "abspd" ? b > a + 1e-6 : b < a - 1e-6;
-        return h("div", {}, h("span", {}, label), h("span", { class: better ? "up" : worse ? "down" : "" }, fmt(b)));
+      const statRow = (k, label, fmt, cmpBase, cmpTarget) => {
+        const a = cmpBase[k], b = cmpTarget[k];
+        const inv = k === "cost" || k === "abspd";
+        const better = inv ? b < a - 1e-6 : b > a + 1e-6;
+        const worse = inv ? b > a + 1e-6 : b < a - 1e-6;
+        const txt = previewing && Math.abs(b - a) > 1e-6 ? `${fmt(a)} → ${fmt(b)}` : fmt(b);
+        return h("div", {}, h("span", {}, label), h("span", { class: better ? "up" : worse ? "down" : "" }, txt));
       };
       const n0 = (v) => String(Math.round(v)), n1 = (v) => v.toFixed(2);
+      const statsEl = h("div", { class: "stats" });
+      let previewing = false;
+      const renderStats = (previewBurn) => {
+        previewing = !!previewBurn;
+        const cmpBase = previewBurn ? cur : base;
+        const cmpTarget = previewBurn ? BC.unitStats(wbSel, tribe, previewBurn) : cur;
+        statsEl.replaceChildren(
+          statRow("hp", "Health", n0, cmpBase, cmpTarget), statRow("dmg", "Damage", n0, cmpBase, cmpTarget),
+          statRow("def", "Defense", n0, cmpBase, cmpTarget), statRow("atkspd", "Attacks / sec", n1, cmpBase, cmpTarget),
+          statRow("move", "Move speed", n0, cmpBase, cmpTarget), statRow("range", "Range", n0, cmpBase, cmpTarget),
+          statRow("abpwr", "Ability power", n0, cmpBase, cmpTarget), statRow("abspd", "Cooldown", (v) => v.toFixed(1) + "s", cmpBase, cmpTarget),
+          statRow("rec", "Recovery / sec", n1, cmpBase, cmpTarget), statRow("cost", "Gold cost", n0, cmpBase, cmpTarget));
+      };
+      renderStats(null);
       info.append(
         h("div", { class: "unit-identity" }, h("span", { class: "eyebrow" }, `${BC.TRIBES[U.tribe].name} · ${U.role}${isMerc ? " · Mercenary" : ""}`), h("h3", {}, wbSel)),
-        h("div", { class: "stats" },
-          statRow("hp", "Health", n0), statRow("dmg", "Damage", n0), statRow("def", "Defense", n0), statRow("atkspd", "Attacks / sec", n1),
-          statRow("move", "Move speed", n0), statRow("range", "Range", n0), statRow("abpwr", "Ability power", n0), statRow("abspd", "Cooldown", (v) => v.toFixed(1) + "s"),
-          statRow("rec", "Recovery / sec", n1), statRow("cost", "Gold cost", n0)),
+        statsEl,
         h("div", { class: "ability-box" }, h("b", {}, U.ability.name), h("div", {}, U.ability.desc)),
         h("div", { class: "scroll" }, BC.LORE[wbSel]));
       const inLine = line.includes(wbSel);
@@ -879,9 +891,9 @@
       if (burnHelp) info.append(burnHelp);
 
       const owner = (id) => Object.keys(S().equipped).find(k => S().equipped[k] === id);
-      const tierCounts = [0, 0, 0, 0, 0];
-      for (const b of S().burns) if (b.tier < 5 && !owner(b.id)) tierCounts[b.tier]++;
-      const fuseTier = tierCounts.findIndex(c => c >= 3);
+      const burnFilter = S().settings.burnFilter || "all";
+      const burnSort = S().settings.burnSort || "tier";
+      const forgeTiers = [0, 1, 2, 3, 4].filter(t => BC.fuseCandidates(t).length === 3);
 
       info.append(
         h("div", { class: "burn-head" },
@@ -890,35 +902,56 @@
         h("div", { class: "burn-tools" },
           h("select", {
             "aria-label": "Filter Runic Burns",
-            onchange: (e) => { burnFilter = e.target.value; render(); },
+            onchange: (e) => { S().settings.burnFilter = e.target.value; BC.persist(); render(); },
           },
             h("option", { value: "all", selected: burnFilter === "all" }, "All Burns"),
             h("option", { value: "unbound", selected: burnFilter === "unbound" }, "Unbound Only"),
             ...Object.entries(BC.BURN_STATS).map(([k, v]) => h("option", { value: k, selected: burnFilter === k }, `+${v.label}`))),
-          fuseTier >= 0 ? h("button", {
-            "data-tip": `Combine 3 unbound ${BC.BURN_TIERS[fuseTier].name}s into 1 ${BC.BURN_TIERS[fuseTier + 1].name}. Equipped burns are protected.`,
+          h("select", {
+            "aria-label": "Sort Runic Burns",
+            onchange: (e) => { S().settings.burnSort = e.target.value; BC.persist(); render(); },
+          },
+            h("option", { value: "tier", selected: burnSort === "tier" }, "Sort: Tier"),
+            h("option", { value: "quality", selected: burnSort === "quality" }, "Sort: Best Roll"),
+            h("option", { value: "buff", selected: burnSort === "buff" }, "Sort: Stat")),
+          ...forgeTiers.map(t => h("button", {
+            "data-tip": `Combine the 3 weakest unbound ${BC.BURN_TIERS[t].name}s into 1 ${BC.BURN_TIERS[t + 1].name}. Equipped burns are protected.`,
             onclick: async () => {
-              if (!(await confirmBox(`Forge 3 unbound ${BC.BURN_TIERS[fuseTier].name}s into one ${BC.BURN_TIERS[fuseTier + 1].name}? The three burns will be consumed.`))) return;
-              const forged = BC.fuseBurns(fuseTier);
+              const cands = BC.fuseCandidates(t);
+              const names = cands.map(c => { const tx = BC.burnText(c); return `${BC.BURN_TIERS[t].name} (${tx.up}, ${tx.down})`; }).join("; ");
+              if (!(await confirmBox(`Forge 3 unbound ${BC.BURN_TIERS[t].name}s into one ${BC.BURN_TIERS[t + 1].name}? Consumes: ${names}.`))) return;
+              const forged = BC.fuseBurns(t);
               if (forged) { BC.sfx.chime(); render(); }
             },
-          }, `Forge 3× ${BC.BURN_TIERS[fuseTier].name.split(" ")[0]} → ${BC.BURN_TIERS[fuseTier + 1].name.split(" ")[0]}`) : null));
+          }, `Forge 3× ${BC.BURN_TIERS[t].name.split(" ")[0]} → ${BC.BURN_TIERS[t + 1].name.split(" ")[0]}`))));
 
       if (!S().burns.length) info.append(h("p", {}, "No Runic Burns yet. Victories carve them."));
       const filtered = S().burns.filter(b => {
         if (burnFilter === "unbound") return !owner(b.id);
         if (burnFilter !== "all") return b.buff === burnFilter;
         return true;
-      }).sort((a, b) => b.tier - a.tier);
+      }).sort((a, b) => {
+        if (burnSort === "quality") return (b.tier - a.tier) || ((b.up - b.down) - (a.up - a.down));
+        if (burnSort === "buff") return a.buff.localeCompare(b.buff) || (b.tier - a.tier);
+        return b.tier - a.tier;
+      });
       if (S().burns.length && !filtered.length) info.append(h("p", { class: "inventory-note" }, "No burns match this filter. Choose All Burns to see your collection."));
 
       filtered.forEach(b => {
         const tier = BC.BURN_TIERS[b.tier], txt = BC.burnText(b), own = owner(b.id);
+        const wasted = BC.burnWastedStats(wbSel, b);
         const rerollCost = (b.tier + 1) * 3;
         const salvageGain = (b.tier + 1) * 2;
+        const salvagePrompt = own
+          ? `Equipped on ${own}! Salvage ${tier.name} into +${salvageGain} Crimson Ash?`
+          : `Salvage ${tier.name} into +${salvageGain} Crimson Ash?`;
         const el = h("div", { class: "burn" + (own === wbSel ? " equipped" : ""), "data-burn": b.id, "data-tip": tier.lore },
-          h("div", { class: "glyph", style: `--tier:${tier.color}` }, h("img", { src: BC.iconURL("artifacts:" + tribe, b.tier, 32) })),
-          h("div", {}, h("div", { class: "t", style: `color:${tier.color}` }, tier.name), h("div", { class: "u" }, txt.up), h("div", { class: "d" }, txt.down)),
+          h("div", { class: "glyph", style: `--tier:${tier.color}` }, h("img", { src: BC.iconURL("artifacts:" + tribe, b.tier, 32), alt: "" })),
+          h("div", {},
+            h("div", { class: "t", style: `color:${tier.color}` }, tier.name),
+            h("div", { class: "u" }, txt.up),
+            h("div", { class: "d" }, txt.down),
+            wasted.length ? h("div", { class: "burn-wasted" }, `⚠ Unused by ${wbSel}: ${wasted.join(", ")}`) : null),
           h("div", { class: "owner" }, own ? (own === wbSel ? "Equipped" : "on " + own) : "Unbound"),
           h("div", { class: "burn-btns" },
             h("button", { class: "burn-act burn-equip" }, own === wbSel ? "Unequip" : "Equip"),
@@ -932,10 +965,14 @@
               "data-tip": `Salvage into +${salvageGain} Crimson Ash`,
               onclick: async (e) => {
                 e.stopPropagation();
-                if (!(await confirmBox(`Salvage ${tier.name} into +${salvageGain} Crimson Ash?`))) return;
+                if (!(await confirmBox(salvagePrompt))) return;
                 BC.salvageBurn(b.id); BC.sfx.click(); render();
               },
             }, `+${salvageGain}✦`)));
+        el.onpointerenter = () => { if (own !== wbSel) renderStats(b); };
+        el.onpointerleave = () => renderStats(null);
+        el.onfocusin = () => { if (own !== wbSel) renderStats(b); };
+        el.onfocusout = () => renderStats(null);
         const equip = async () => {
           if (own === wbSel) { delete S().equipped[wbSel]; }
           else {
@@ -950,7 +987,7 @@
         $(".burn-equip", el).onclick = (e) => { e.stopPropagation(); equip(); };
         el.oncontextmenu = async (e) => {
           e.preventDefault();
-          if (!(await confirmBox(`Salvage ${tier.name} into +${salvageGain} Crimson Ash?`))) return;
+          if (!(await confirmBox(salvagePrompt))) return;
           BC.salvageBurn(b.id); BC.sfx.click(); render();
         };
         info.append(el);
@@ -1099,14 +1136,18 @@
     $(".hud-right .gear", hud).onclick = () => setPaused(true);
     $(".resume", pause).onclick = () => setPaused(false);
     $(".retreat", pause).onclick = async () => {
+      if (!battle || battle.over) return;
       if (!(await confirmBox(lastEndless ? "End this Endless run and claim wave rewards?" : "Retreat? The spoils of this battle will be lost."))) return;
+      if (!battle || battle.over) return;
       const s = battle.stats; s.time = battle.t;
       battle.over = true;
       endBattle({ win: false, retreat: true, stats: s });
     };
 
     const onVisibility = () => { if (document.hidden) setPaused(true); };
+    const onBlur = () => setPaused(true);
     document.addEventListener("visibilitychange", onVisibility);
+    addEventListener("blur", onBlur);
     let hudTick = 0;
     battle = new BC.Battle($("#battle-canvas"), {
       tribe, stage: lastStage, endless: lastEndless, lineup: line,
@@ -1234,6 +1275,7 @@
       clearTimeout(toastT);
       btnWrap.removeEventListener("click", inspectUnit);
       document.removeEventListener("visibilitychange", onVisibility);
+      removeEventListener("blur", onBlur);
       guide.classList.add("hidden");
       removeEventListener("keydown", keyHandler);
       if (battle) { battle.destroy(); battle = null; BC.currentBattle = null; }
@@ -1419,6 +1461,31 @@
     }
     $(".close", m).onclick = () => closeDialog(m);
     $(".close-icon", m).onclick = () => closeDialog(m);
+    $(".export-save", m).onclick = () => {
+      const blob = new Blob([BC.exportSave()], { type: "application/json" });
+      const a = Object.assign(document.createElement("a"), {
+        href: URL.createObjectURL(blob),
+        download: "beast-and-crimson-save.json",
+      });
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+      $(".save-status", m).textContent = "Save exported.";
+    };
+    const importInput = $(".import-file", m);
+    $(".import-save", m).onclick = () => { importInput.value = ""; importInput.click(); };
+    importInput.onchange = async () => {
+      const file = importInput.files?.[0];
+      if (!file) return;
+      const text = await file.text();
+      if (!(await confirmBox("Replace all current progress with the imported save?"))) return;
+      const res = BC.importSave(text);
+      if (!res.ok) {
+        $(".save-status", m).textContent = res.error;
+        return;
+      }
+      syncMotion(); syncAudioControls(); BC.audio.sync();
+      closeDialog(m); show("menu", true);
+    };
     $(".replay-intro", m).onclick = () => { closeDialog(m); introRecap = false; show("intro", true); };
     $(".replay-tutorial", m).disabled = !S().tribe;
     $(".replay-tutorial", m).onclick = () => {

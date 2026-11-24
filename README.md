@@ -20,9 +20,9 @@ polished, shareable release.
 - The screens are the ones the docs describe: loading (rotating emblem, claw progress bar, tips), cut scene (cinematic bars, subtitles, skip rune), main menu (stone slabs, pulsing start shield), campaign map, unit customization, HUD, retreated/result screen and the rune-curtain transition.
 - **Campaign and lineup overview**: jump to your next chapter, see conquered keeps and your Endless record, and inspect the five deployment slots above your roster. Unit stats use full labels; the Ledger includes enemy lore directly on each card.
 - **Keyboard, touch and motion preferences**: tribe and stage cards are keyboard accessible, dialogs keep focus inside and restore it when closed, and Escape cancels a confirmation. Menus, inventory and battles support portrait phones as well as landscape. Settings include a controls reference and reduced motion that follows your device by default.
-- **Battle clarity**: each biome's painting forms the battlefield backdrop, deployment slots show warrior names where space permits, and the HUD includes a timer and casting mode. Switching away from the tab pauses the battle and stops ambience; returning waits for you to resume.
-- **Safer forging**: only unbound burns can be forged. Forging asks for confirmation and never consumes equipped burns; the Unbound filter shows only unequipped burns.
-- Offline, no dependencies. Progress is saved in `localStorage`. Partial saves are validated and repaired without discarding valid progress. The menu and Settings report when the browser cannot save.
+- **Battle clarity**: each biome's painting forms the battlefield backdrop, deployment slots show warrior names where space permits, and the HUD includes a timer and casting mode. Crowded fights merge nearby damage/heal numbers and cap active floating text for readability. Switching away from the tab or window pauses the battle and stops ambience; returning waits for you to resume.
+- **Safer forging & burn comparison**: only unbound burns can be forged. Hovering or focusing a burn previews its before-and-after stat changes on the selected warrior and flags unused buff stats. Forging offers every eligible tier, consumes the three weakest unbound rolls, and names them in the confirmation; salvaging an equipped burn warns before destroying it. Filter and sort preferences persist in your save.
+- **Offline & portable saves**: no dependencies required. Progress is saved in `localStorage`, and Settings lets you **Export save** and **Import save** as a versioned JSON file (invalid or newer-version imports leave current progress untouched). Partial saves are validated and repaired without discarding valid progress. The menu and Settings report when the browser cannot save.
 
 ## Play
 
@@ -119,13 +119,20 @@ title, Cinzel for headings and EB Garamond for body text.
 
 ```
 index.html  style.css
-src/data.js     tribes, units + abilities, enemies, stages, runic burns, TUNE (balance knobs)
-src/core.js     save data, burn rolls, stat assembly, asset loader, WebAudio synth sfx
-src/audio.js    shared audio mixer, streamed soundtrack, fades and audio lifecycle
-src/battle.js   lane simulation + canvas renderer (480×270, pixel-scaled)
-src/ui.js       screens, transitions, HUD, warband, results
-tools/build_sprites.py   tools/gen_art.py   tools/sim.js (headless balance bot)
+src/data.js         tribes, units + abilities, enemies, stages, runic burns, TUNE (balance knobs)
+src/core.js         save data, export/import, burn rolls, stat assembly, asset loader, WebAudio synth sfx
+src/audio.js        shared audio mixer, streamed soundtrack, fades and audio lifecycle
+src/battle.js       lane simulation + canvas renderer (480×270, pixel-scaled)
+src/intro.js        intro timeline & subtitle parser
+src/intro-scene.js  illustrated intro scene renderer
+src/errors.js       global error boundary with save download
+src/ui.js           screens, transitions, HUD, warband, results, settings
+tools/              sim.js, check_battle.cjs, check_lifecycle.cjs, check_intro_timeline.cjs,
+                    check_browser.cjs, check_clarity.cjs, check_audio.cjs, build_release.sh
 ```
+
+Run the unit & simulation suite with `npm run test:unit` (or `npm test` to include browser checks).
+Build `.deb`, `.rpm`, and `.AppImage` packages into `dist/` with `./tools/build_release.sh`.
 
 Run feature checks and the campaign/endless simulations with
 `node tools/sim.js --runs 3`. Checks cover burns, paused actions, Royal Bribe,

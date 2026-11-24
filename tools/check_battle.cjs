@@ -182,3 +182,56 @@ console.log("[OK] Rules text: Ability Speed mathematics, Mirror Host life and Cr
   assert.equal(championsOf("Foundry Colossus"), 2, "A biome's champion returns with its biome (waves 6 and 16)");
 }
 console.log("[OK] Endless: champions return with their biome, and each new wave is reported immediately");
+
+// ---- Data integrity, burn preview, safer forging, save transfer, text cap ----
+{
+  assert.deepEqual(BC.validateData(), [], "All units, enemies, stages, and tribes pass data integrity checks");
+
+  BC.resetSave();
+  const baseBaron = BC.unitStats("Baron", "greed", true);
+  const preview = BC.unitStats("Baron", "greed", { buff: "hp", up: 20, debuff: "def", down: 10 });
+  near(preview.hp, baseBaron.hp * 1.2, 1e-6, "unitStats previews arbitrary burn without equipping");
+  assert.deepEqual(BC.burnWastedStats("Warbeast Drummer", { buff: "abpwr", up: 15, debuff: "hp", down: 5 }), ["Ability Power"]);
+  assert.deepEqual(BC.burnWastedStats("Baron", { buff: "abpwr", up: 15, debuff: "hp", down: 5 }), []);
+
+  // Safer forging: consumes 3 weakest unbound burns, never touches equipped burns
+  BC.save.burns = [
+    { id: 1, tier: 0, buff: "hp", up: 12, debuff: "def", down: 3 },
+    { id: 2, tier: 0, buff: "hp", up: 6, debuff: "def", down: 5 },
+    { id: 3, tier: 0, buff: "hp", up: 15, debuff: "def", down: 2 }, // strongest unbound: kept
+    { id: 4, tier: 0, buff: "hp", up: 8, debuff: "def", down: 4 },
+    { id: 5, tier: 0, buff: "hp", up: 5, debuff: "def", down: 5 },  // equipped: protected
+  ];
+  BC.save.equipped["Baron"] = 5;
+  BC.save.nextId = 6;
+  const cands = BC.fuseCandidates(0).map(b => b.id).sort((a, b) => a - b);
+  assert.deepEqual(cands, [1, 2, 4], "fuseCandidates picks the 3 weakest unbound burns");
+  const forged = BC.fuseBurns(0, () => 0.5);
+  assert.equal(forged.tier, 1);
+  assert.ok(BC.save.burns.some(b => b.id === 3), "Strongest unbound burn survives forging");
+  assert.ok(BC.save.burns.some(b => b.id === 5), "Equipped burn is protected from forging");
+
+  // Save export/import round trip and invalid import protection
+  BC.save.ash = 77;
+  const exported = BC.exportSave();
+  assert.equal(BC.importSave("not json").ok, false, "Malformed JSON is rejected");
+  assert.equal(BC.importSave(JSON.stringify({ v: 999, progress: {} })).ok, false, "Newer save version is rejected");
+  assert.equal(BC.importSave(JSON.stringify({ foo: "bar" })).ok, false, "Unrelated JSON object is rejected");
+  assert.equal(BC.save.ash, 77, "Failed import leaves current save untouched");
+  BC.resetSave();
+  assert.equal(BC.save.ash, 0);
+  assert.equal(BC.importSave(exported).ok, true, "Valid exported save imports cleanly");
+  assert.equal(BC.save.ash, 77, "Imported save restores ash");
+  BC.resetSave();
+
+  // Floating text merge & cap
+  const b = battle({ lineup: ["Baron"] });
+  b.text(100, 150, "20", "#fff3d6");
+  b.text(104, 152, "15", "#fff3d6");
+  const texts = b.fx.filter(f => f.kind === "text");
+  assert.equal(texts.length, 1, "Nearby same-color numeric texts merge");
+  assert.equal(texts[0].s, "35");
+  for (let i = 0; i < 45; i++) b.text(20 + i * 20, 100 + (i % 2) * 30, String(i + 1), "#ff6b6b");
+  assert.ok(b.fx.filter(f => f.kind === "text").length <= 32, "Floating text count is capped at 32");
+}
+console.log("[OK] Data integrity, burn preview/wasted-stat detection, safer forging, save transfer and text cap");

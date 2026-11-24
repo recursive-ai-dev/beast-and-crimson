@@ -12,7 +12,7 @@
     endless: { offense: 0, defense: 0, greed: 0 },
     lineup: {}, burns: [], equipped: {}, ash: 0, bestiary: {}, newUnits: [],
     tutorial: { battle: "deploy", burn: "equip" },
-    settings: { sound: true, masterVolume: 0.8, musicVolume: 0.55, effectsVolume: 0.8, ambienceVolume: 0.4, autocast: false, narration: true, ambience: true, speed: 1, motion: "system" },
+    settings: { sound: true, masterVolume: 0.8, musicVolume: 0.55, effectsVolume: 0.8, ambienceVolume: 0.4, autocast: false, narration: true, ambience: true, speed: 1, motion: "system", burnFilter: "all", burnSort: "tier" },
     achievements: {},
   });
   const record = v => v && typeof v === "object" && !Array.isArray(v) ? v : {};
@@ -36,6 +36,8 @@
     out.settings.speed = settings.speed === 2 ? 2 : 1;
     out.settings.scene = settings.scene === 1 ? 1 : 0;
     out.settings.motion = ["system", "reduced", "full"].includes(settings.motion) ? settings.motion : "system";
+    out.settings.burnFilter = settings.burnFilter === "unbound" || Object.hasOwn(BC.BURN_STATS, settings.burnFilter) ? settings.burnFilter : "all";
+    out.settings.burnSort = ["tier", "buff", "quality"].includes(settings.burnSort) ? settings.burnSort : "tier";
     out.ash = count(src.ash);
     const ids = new Set();
     out.burns = (Array.isArray(src.burns) ? src.burns : []).filter(b => {
@@ -121,6 +123,27 @@
     removeCopy(BACKUP_KEY); removeCopy(DAMAGED_KEY);
     save = DEFAULT(); BC.save = save; persist();
   };
+  const exportSave = () => JSON.stringify(Object.assign({}, save, { v: SAVE_VERSION }), null, 2);
+  function importSave(text) {
+    let stored;
+    try { stored = parseSave(text); }
+    catch (e) { return { ok: false, error: "File is not valid save JSON." }; }
+    if (stored.v !== undefined && (!Number.isInteger(stored.v) || stored.v < 1)) {
+      return { ok: false, error: "Unrecognized save version." };
+    }
+    if (stored.v > SAVE_VERSION) {
+      return { ok: false, error: `Save is from a newer version (v${stored.v}).` };
+    }
+    const known = ["v", "tribe", "progress", "endless", "burns", "settings", "achievements"];
+    if (!known.some(k => Object.hasOwn(stored, k))) {
+      return { ok: false, error: "File does not contain Beast and Crimson save data." };
+    }
+    readOnly = false; BC.saveNotice = "";
+    save = normalizeSave(stored);
+    BC.save = save;
+    persist();
+    return { ok: true };
+  }
 
   const tribeUnits = (tribe) => Object.keys(BC.UNITS).filter(n => BC.UNITS[n].tribe === tribe);
   const unlockedUnits = (tribe) => tribeUnits(tribe).slice(0, Math.min(10, 3 + save.progress[tribe]));
@@ -211,9 +234,10 @@
     else stats[key] = stats[key] * (isBuff ? 1 + f : 1 - f);
   }
 
-  function unitStats(name, tribe, noBurn) {
+  function unitStats(name, tribe, noBurnOrBurn) {
     const base = Object.assign({}, BC.UNITS[name].stats);
-    const burn = !noBurn && save.burns.find(b => b.id === save.equipped[name]);
+    const burn = noBurnOrBurn === true ? null
+      : (noBurnOrBurn && typeof noBurnOrBurn === "object" ? noBurnOrBurn : save.burns.find(b => b.id === save.equipped[name]));
     if (burn) { applyMod(base, burn.buff, burn.up, true); applyMod(base, burn.debuff, burn.down, false); }
     base.hp *= BC.TUNE.unitHp;
     base.dmg *= BC.TUNE.unitDmg;
@@ -222,6 +246,14 @@
     if (mods.hp) base.hp *= mods.hp;
     if (mods.def) base.def *= mods.def;
     return base;
+  }
+
+  function burnWastedStats(name, burn) {
+    const unit = BC.UNITS[name];
+    if (!unit || !burn) return [];
+    const wasted = [];
+    if (unit.stats[burn.buff] === 0 && BC.BURN_STATS[burn.buff]) wasted.push(BC.BURN_STATS[burn.buff].label);
+    return wasted;
   }
 
   const burnText = (b) => {
@@ -243,12 +275,18 @@
     return ash;
   }
 
-  function fuseBurns(tier, rand) {
-    if (!Number.isInteger(tier) || tier < 0 || tier >= 5) return null;
+  function fuseCandidates(tier) {
+    if (!Number.isInteger(tier) || tier < 0 || tier >= 5) return [];
     const eqIds = new Set(Object.values(save.equipped));
     const pool = save.burns.filter(b => b.tier === tier && !eqIds.has(b.id));
-    if (pool.length < 3) return null;
-    const drop = new Set(pool.slice(0, 3).map(b => b.id));
+    if (pool.length < 3) return [];
+    return pool.slice().sort((a, b) => (a.up - a.down) - (b.up - b.down) || a.id - b.id).slice(0, 3);
+  }
+
+  function fuseBurns(tier, rand) {
+    const candidates = fuseCandidates(tier);
+    if (candidates.length < 3) return null;
+    const drop = new Set(candidates.map(b => b.id));
     save.burns = save.burns.filter(b => !drop.has(b.id));
     for (const k of Object.keys(save.equipped)) if (drop.has(save.equipped[k])) delete save.equipped[k];
     const forged = makeBurn(tier + 1, rand);
@@ -487,10 +525,32 @@
     }
   }
 
+  function validateData() {
+    const errs = [];
+    for (const [id, t] of Object.entries(BC.TRIBES)) {
+      if (!t.name || !t.spell || typeof t.spell.run !== "function") errs.push(`Tribe ${id} missing spell`);
+    }
+    for (const [name, u] of Object.entries(BC.UNITS)) {
+      if (!Object.hasOwn(BC.TRIBES, u.tribe)) errs.push(`Unit ${name} has unknown tribe ${u.tribe}`);
+      if (!BC.LORE[name]) errs.push(`Unit ${name} missing lore`);
+      if (!u.ability || typeof u.ability.run !== "function") errs.push(`Unit ${name} missing ability`);
+      for (const k of Object.keys(BC.BURN_STATS)) if (!Number.isFinite(u.stats[k])) errs.push(`Unit ${name} missing stat ${k}`);
+    }
+    BC.STAGES.forEach((s, i) => {
+      if (!s.name || !s.tile || !s.keep) errs.push(`Stage ${i} missing metadata`);
+      if (!Array.isArray(s.pool) || !s.pool.length) errs.push(`Stage ${i} empty pool`);
+      for (const e of (s.pool || [])) if (!Object.hasOwn(BC.ENEMIES, e)) errs.push(`Stage ${i} unknown enemy ${e}`);
+      if (s.midBoss && !Object.hasOwn(BC.ENEMIES, s.midBoss)) errs.push(`Stage ${i} unknown midBoss ${s.midBoss}`);
+      if (s.boss && !Object.hasOwn(BC.ENEMIES, s.boss)) errs.push(`Stage ${i} unknown boss ${s.boss}`);
+    });
+    return errs;
+  }
+
   Object.assign(BC, {
-    save, persist, resetSave, normalizeSave, tribeUnits, unlockedUnits, mercenaryUnits, lineup, addToLineup, fillLineup,
+    save, persist, resetSave, exportSave, importSave, normalizeSave, validateData,
+    tribeUnits, unlockedUnits, mercenaryUnits, lineup, addToLineup, fillLineup,
     advanceTutorial, skipTutorial, resetTutorial, makeRng,
-    makeBurn, rollTier, unitStats, burnText, salvageBurn, fuseBurns, rerollBurn,
+    makeBurn, rollTier, unitStats, burnText, burnWastedStats, salvageBurn, fuseCandidates, fuseBurns, rerollBurn,
     images, loadAssets, loadStageArt, drawFrame, iconURL, sfx, ambience, narrate, narrating, cancelNarration,
   });
 })();

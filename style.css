@@ -299,6 +299,9 @@ img.px { image-rendering: pixelated; }
 .burn.equipped { border-color: var(--gold); }
 .burn .glyph { width: 26px; height: 26px; flex: none; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 16px; color: #000; box-shadow: inset 0 0 6px rgba(0,0,0,.6); }
 .burn .t { font-size: 12px; } .burn .u { color: #7dff8a; font-size: 11px; } .burn .d { color: #ff7d7d; font-size: 11px; }
+.burn .burn-wasted { color: #f6b24a; font-size: 10px; margin-top: 2px; }
+.save-transfer { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 8px 0; }
+.save-transfer button { width: 100%; }
 .burn .owner { margin-left: auto; font-size: 10px; color: #a99; text-align: right; }
 .lineup-count { color: #d8c8a8; }
 .wb-actions { display: flex; gap: 8px; margin: 8px 0; flex-wrap: wrap; }
