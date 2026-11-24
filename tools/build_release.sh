@@ -60,6 +60,7 @@ Categories=Game;StrategyGame;
 EOF
 
   cp assets/art/crest.png "$prefix/usr/share/icons/hicolor/256x256/apps/$APP.png"
+  chmod -R a+rX "$prefix"
 }
 
 if [ "$DO_DEB" -eq 1 ]; then
@@ -143,6 +144,7 @@ HERE="$(dirname "$(readlink -f "$0")")"
 exec "$HERE/usr/share/beast-and-crimson/bc-start" "$@"
 EOF
     chmod 0755 "$APPDIR/AppRun"
+    chmod -R a+rX "$APPDIR"
     ARCH=x86_64 "$APPIMAGETOOL" --no-appstream "$APPDIR" "$DIST/Beast_and_Crimson-${VERSION}-x86_64.AppImage"
     echo "[OK] Built $DIST/Beast_and_Crimson-${VERSION}-x86_64.AppImage"
   else
