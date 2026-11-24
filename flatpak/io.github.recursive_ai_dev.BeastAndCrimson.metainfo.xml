@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <component type="desktop-application">
-  <id>com.beastandcrimson.app</id>
+  <id>io.github.recursive_ai_dev.BeastAndCrimson</id>
   <metadata_license>CC0-1.0</metadata_license>
-  <project_license>LicenseRef-proprietary</project_license>
+  <project_license>Apache-2.0</project_license>
 
   <name>Beast and Crimson</name>
   <summary>Command three tribes in an offline dark-fantasy lane battler</summary>
@@ -28,7 +28,7 @@
     </ul>
   </description>
 
-  <launchable type="desktop-id">com.beastandcrimson.app.desktop</launchable>
+  <launchable type="desktop-id">io.github.recursive_ai_dev.BeastAndCrimson.desktop</launchable>
 
   <url type="homepage">https://github.com/recursive-ai-dev/beast-and-crimson</url>
   <url type="bugtracker">https://github.com/recursive-ai-dev/beast-and-crimson/issues</url>
@@ -64,9 +64,9 @@
   </content_rating>
 
   <releases>
-    <release version="0.10.0" date="2026-11-24">
+    <release version="0.10.1" date="2026-11-24">
       <description>
-        <p>Electron desktop wrapper, non-intrusive HUD and Warband tooltips, foreground lane lamp posts, and battle visual polish.</p>
+        <p>Apache-2.0 release with Electron desktop wrapper, Flatpak metadata, non-intrusive HUD tooltips, and battle polish.</p>
       </description>
     </release>
   </releases>

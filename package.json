@@ -1,13 +1,13 @@
 {
   "name": "beast-and-crimson",
-  "version": "0.10.0",
+  "version": "0.10.1",
   "description": "An offline dark fantasy lane battler. The game itself has no dependencies; these are development tools only.",
   "author": {
     "name": "recursive-ai-dev",
     "email": "psychcoherence@gmail.com"
   },
   "private": true,
-  "license": "UNLICENSED",
+  "license": "Apache-2.0",
   "main": "electron/main.js",
   "engines": {
     "node": ">=20"
@@ -22,7 +22,7 @@
     "sim": "node tools/sim.js --runs 3"
   },
   "build": {
-    "appId": "com.beastandcrimson.app",
+    "appId": "io.github.recursive_ai_dev.BeastAndCrimson",
     "productName": "Beast and Crimson",
     "directories": {
       "output": "dist"
