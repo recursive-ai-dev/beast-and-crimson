@@ -703,7 +703,8 @@
       BC.drawFrame(g, "props:campfire", Math.floor(t * 7) % 4, BASE_X + 20, LANE_Y - 26, 1);
       BC.drawFrame(g, "props:lantern", Math.floor(t * 6) % 4, BASE_X - 30, LANE_Y - 44, 1);
       const ef = this.enemy.flash || 0;
-      BC.drawFrame(g, "keeps:" + this.stage.keep, 0, KEEP_X - 40, LANE_Y - 78, 2.5);
+      const keepCell = (window.BC_ASSETS?.keeps?.[this.stage.keep]?.cell) || 32;
+      BC.drawFrame(g, "keeps:" + this.stage.keep, 0, KEEP_X - 40, LANE_Y - 78, 80 / keepCell, false, keepCell);
       if (ef > 0) { g.fillStyle = "rgba(255,255,255,0.25)"; g.fillRect(KEEP_X - 40, LANE_Y - 78, 80, 80); }
       BC.drawFrame(g, "props:brazier", Math.floor(t * 8) % 4, KEEP_X - 58, LANE_Y - 30, 1);
       BC.drawFrame(g, "props:lantern", Math.floor(t * 6 + 2) % 4, KEEP_X + 8, LANE_Y - 44, 1);

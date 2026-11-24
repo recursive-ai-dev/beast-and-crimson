@@ -806,16 +806,20 @@ window.BC_ASSETS = {
  },
  "keeps": {
   "oldstone": {
-   "src": "keeps/oldstone.png"
+   "src": "keeps/oldstone.png",
+   "cell": 64
   },
   "cinder": {
-   "src": "keeps/cinder.png"
+   "src": "keeps/cinder.png",
+   "cell": 64
   },
   "moor": {
-   "src": "keeps/moor.png"
+   "src": "keeps/moor.png",
+   "cell": 64
   },
   "coastal": {
-   "src": "keeps/coastal.png"
+   "src": "keeps/coastal.png",
+   "cell": 64
   }
  },
  "props": {
