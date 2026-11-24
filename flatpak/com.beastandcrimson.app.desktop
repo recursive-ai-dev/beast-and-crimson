@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Beast and Crimson
+Comment=Offline dark fantasy lane battler
+Exec=beast-and-crimson
+Icon=com.beastandcrimson.app
+Terminal=false
+Categories=Game;StrategyGame;
+StartupWMClass=Beast and Crimson

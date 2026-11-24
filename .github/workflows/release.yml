@@ -19,6 +19,9 @@ jobs:
         with:
           node-version: "20"
 
+      - name: Install dependencies
+        run: npm ci
+
       - name: Run unit tests
         run: npm run test:unit
 
@@ -26,12 +29,6 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y rpm desktop-file-utils
-          curl -fsSL -o /tmp/appimagetool.AppImage \
-            https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
-          chmod +x /tmp/appimagetool.AppImage
-          /tmp/appimagetool.AppImage --appimage-extract >/dev/null
-          sudo mv squashfs-root /opt/appimagetool
-          sudo ln -sf /opt/appimagetool/AppRun /usr/local/bin/appimagetool
 
       - name: Build .deb, .rpm, and .AppImage
         run: bash tools/build_release.sh

@@ -79,7 +79,7 @@
         <div class="hint"></div>
       </div>
     </div>
-    <button class="gear corner" title="Settings" aria-label="Settings"><svg class="vine" aria-hidden="true"><use href="#vine-gear"/></svg></button>
+    <button class="gear corner" data-tip="Settings, controls &amp; save options" aria-label="Settings"><svg class="vine" aria-hidden="true"><use href="#vine-gear"/></svg></button>
     <div class="menu-meta"><span>30 warriors <i>·</i> 10 keeps <i>·</i> One crown</span><span class="save-status" role="status"></span></div>
   </section>
 
@@ -90,9 +90,9 @@
       <button class="stone-btn back">&#8592; Tribes</button>
       <h2 class="camp-title"></h2>
       <div class="bar-btns">
-        <button class="stone-btn endless-btn">Endless</button>
-        <button class="stone-btn bestiary-btn">Ledger</button>
-        <button class="stone-btn warband-btn">Warband</button>
+        <button class="stone-btn endless-btn" data-tip="Endless — survive escalating waves of foes for high scores">Endless</button>
+        <button class="stone-btn bestiary-btn" data-tip="Ledger — inspect enemy foes, lore, and battle records">Ledger</button>
+        <button class="stone-btn warband-btn" data-tip="Warband — set your 5-slot lineup and bind Runic Burns">Warband</button>
       </div>
     </header>
     <div class="campaign-body"><div class="campaign-overview"></div><div class="missions" role="group" aria-label="Campaign stages"></div></div>
@@ -109,7 +109,7 @@
     <div class="lineup-strip" role="group" aria-label="Your battle lineup"></div>
     <div class="wb-body">
       <div class="wb-list"></div>
-      <div class="wb-display"><div class="scene-back"></div><div class="pedestal"></div><canvas width="96" height="96"></canvas><div class="wb-name"></div><button class="stone-btn scene-btn" title="Change the display">&#x16DF; Scene</button></div>
+      <div class="wb-display"><div class="scene-back"></div><div class="pedestal"></div><canvas width="96" height="96"></canvas><div class="wb-name"></div><button class="stone-btn scene-btn" data-tip="Cycle the display backdrop behind your warrior">&#x16DF; Scene</button></div>
       <div class="wb-info"></div>
     </div>
   </section>
@@ -119,17 +119,17 @@
     <canvas id="battle-canvas" width="480" height="270" aria-label="Battlefield. Use the deployment and ability buttons to command your warriors."></canvas>
     <div class="hud">
       <div class="hud-left">
-        <div class="hp-bar"><div class="hp-end l"></div><div class="hp-liquid"></div><div class="hp-end r"></div><span class="hp-text"></span></div>
-        <div class="deployed"></div>
+        <div class="hp-bar" data-tip="Your Totem's health — if it falls, the battle is lost"><div class="hp-end l"></div><div class="hp-liquid"></div><div class="hp-end r"></div><span class="hp-text"></span></div>
+        <div class="deployed" data-tip="Active warriors on the lane"></div>
       </div>
-      <div class="hud-mid"><div class="keep-bar"><div class="keep-fill"></div><span class="keep-name"></span></div></div>
+      <div class="hud-mid"><div class="keep-bar" data-tip="Enemy Keep — raze it to win the stage"><div class="keep-fill"></div><span class="keep-name"></span></div></div>
       <div class="hud-right">
-        <button class="stone-btn speed-btn" title="Toggle battle speed (X)" aria-label="Battle speed: 1x. Press X to change.">1x</button>
-        <div class="gold-slab"><span class="coin"></span><span class="gold-val">0</span><span class="chest"></span></div>
-        <button class="gear" title="Pause (Escape)" aria-label="Pause battle"><svg class="vine" aria-hidden="true"><use href="#vine-gear"/></svg></button>
+        <button class="stone-btn speed-btn" data-tip="Toggle battle speed (1x / 2x) · Press X" aria-label="Battle speed: 1x. Press X to change.">1x</button>
+        <div class="gold-slab" data-tip="Gold — earned over time and from slain foes. Spend it to deploy warriors."><span class="coin"></span><span class="gold-val">0</span><span class="chest"></span></div>
+        <button class="gear" data-tip="Pause battle &amp; audio options · Press Esc" aria-label="Pause battle"><svg class="vine" aria-hidden="true"><use href="#vine-gear"/></svg></button>
       </div>
-      <div class="battle-status"><span class="battle-time">0:00</span><span class="cast-mode"></span></div>
-      <button class="spell-btn" title="Totem Spell (R)"><img class="px" alt=""><span class="cool"></span><span class="key">R</span><span class="spell-state"></span></button>
+      <div class="battle-status"><span class="battle-time" data-tip="Elapsed battle time">0:00</span><span class="cast-mode" data-tip="Ability casting mode — toggle Auto-cast in Pause or Settings"></span></div>
+      <button class="spell-btn"><img class="px" alt=""><span class="cool"></span><span class="key">R</span><span class="spell-state"></span></button>
       <div class="unit-buttons"></div>
       <aside class="battle-guide hidden" aria-label="Battle tutorial"><div class="guide-copy" aria-live="polite"></div><button class="guide-skip">Skip tutorial</button></aside>
       <div class="battle-notices">

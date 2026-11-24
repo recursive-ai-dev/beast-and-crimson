@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>com.beastandcrimson.app</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>LicenseRef-proprietary</project_license>
+
+  <name>Beast and Crimson</name>
+  <summary>Command three tribes in an offline dark-fantasy lane battler</summary>
+
+  <developer id="io.github.recursive-ai-dev">
+    <name>recursive-ai-dev</name>
+  </developer>
+
+  <description>
+    <p>
+      Beast and Crimson is a deterministic pixel-art lane battler set in a grim
+      dark-fantasy world. Choose one of three rival tribes—each with its own
+      warriors, totem spells, and playstyle—and march across ten keeps to
+      overthrow the Collector King.
+    </p>
+    <p>Features:</p>
+    <ul>
+      <li>Three playable tribes (Offense, Defense, and Greed) with 30 unique warriors and abilities</li>
+      <li>Ten handcrafted campaign stages with biome hazards, plus an Endless survival mode</li>
+      <li>Warband customization with Mercenary Pacts and Runic Burns that reshape unit stats</li>
+      <li>Deterministic 60 Hz combat simulation with manual or auto-cast ability control</li>
+      <li>Fully offline single-player experience with illustrated intro sequence and dynamic soundtrack</li>
+    </ul>
+  </description>
+
+  <launchable type="desktop-id">com.beastandcrimson.app.desktop</launchable>
+
+  <url type="homepage">https://github.com/recursive-ai-dev/beast-and-crimson</url>
+  <url type="bugtracker">https://github.com/recursive-ai-dev/beast-and-crimson/issues</url>
+  <url type="vcs-browser">https://github.com/recursive-ai-dev/beast-and-crimson</url>
+
+  <screenshots>
+    <screenshot type="default">
+      <caption>Battlefield lane combat with deployed warriors and totem spells</caption>
+      <image>https://raw.githubusercontent.com/recursive-ai-dev/beast-and-crimson/main/flatpak/screenshots/04-battle.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Choose your tribe on the title screen</caption>
+      <image>https://raw.githubusercontent.com/recursive-ai-dev/beast-and-crimson/main/flatpak/screenshots/01-menu.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Campaign map and stage selection</caption>
+      <image>https://raw.githubusercontent.com/recursive-ai-dev/beast-and-crimson/main/flatpak/screenshots/02-campaign.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Warband lineup and Runic Burn customization</caption>
+      <image>https://raw.githubusercontent.com/recursive-ai-dev/beast-and-crimson/main/flatpak/screenshots/03-warband.png</image>
+    </screenshot>
+  </screenshots>
+
+  <categories>
+    <category>Game</category>
+    <category>StrategyGame</category>
+  </categories>
+
+  <content_rating type="oars-1.1">
+    <content_attribute id="violence-cartoon">mild</content_attribute>
+    <content_attribute id="violence-fantasy">mild</content_attribute>
+  </content_rating>
+
+  <releases>
+    <release version="0.10.0" date="2026-11-24">
+      <description>
+        <p>Electron desktop wrapper, non-intrusive HUD and Warband tooltips, foreground lane lamp posts, and battle visual polish.</p>
+      </description>
+    </release>
+  </releases>
+</component>

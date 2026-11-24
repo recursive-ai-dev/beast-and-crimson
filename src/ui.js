@@ -844,13 +844,25 @@
         h("strong", {}, "4 / 4 · Bind a Runic Burn"),
         h("p", {}, "Select a warrior, read a burn's buff and debuff below, then choose Equip. Each warrior holds one burn."),
         h("button", { class: "guide-skip", onclick: () => { S().tutorial.burn = "skipped"; BC.persist(); render(); } }, "Skip this tip")) : null;
+      const STAT_TIPS = {
+        hp: "Maximum health before this warrior falls",
+        dmg: "Base damage dealt per attack",
+        def: "Reduces incoming damage from each hit",
+        atkspd: "Attacks landed per second",
+        move: "Marching speed along the lane",
+        range: "Attack reach in pixels (melee vs ranged)",
+        abpwr: "Scales the strength of this warrior's ability",
+        abspd: "Seconds between ability casts (lower is faster)",
+        rec: "Health regenerated each second",
+        cost: "Gold required to deploy this warrior (lower is cheaper)",
+      };
       const statRow = (k, label, fmt, cmpBase, cmpTarget) => {
         const a = cmpBase[k], b = cmpTarget[k];
         const inv = k === "cost" || k === "abspd";
         const better = inv ? b < a - 1e-6 : b > a + 1e-6;
         const worse = inv ? b > a + 1e-6 : b < a - 1e-6;
         const txt = previewing && Math.abs(b - a) > 1e-6 ? `${fmt(a)} → ${fmt(b)}` : fmt(b);
-        return h("div", {}, h("span", {}, label), h("span", { class: better ? "up" : worse ? "down" : "" }, txt));
+        return h("div", { "data-tip": STAT_TIPS[k] }, h("span", {}, label), h("span", { class: better ? "up" : worse ? "down" : "" }, txt));
       };
       const n0 = (v) => String(Math.round(v)), n1 = (v) => v.toFixed(2);
       const statsEl = h("div", { class: "stats" });
@@ -1174,8 +1186,12 @@
         spdBtn.disabled = B.paused || B.over;
         $(".hp-liquid", hud).style.setProperty("--hp", Math.max(0, B.player.hp / B.player.max * 100) + "%");
         $(".hp-text", hud).textContent = Math.max(0, Math.ceil(B.player.hp)) + " / " + Math.round(B.player.max);
+        updateTip($(".hp-bar", hud), `Totem health: ${Math.max(0, Math.ceil(B.player.hp))} / ${Math.round(B.player.max)}\nIf your Totem falls, the battle is lost.`);
         $(".keep-fill", hud).style.width = Math.max(0, B.enemy.hp / B.enemy.max * 100) + "%";
-        $(".keep-name", hud).title = `${B.stage.name} · ${Math.max(0, Math.ceil(B.enemy.hp))} / ${B.enemy.max} HP`;
+        updateTip($(".keep-bar", hud), `${B.stage.name} · ${Math.max(0, Math.ceil(B.enemy.hp))} / ${Math.round(B.enemy.max)} HP\nRaze the keep to win.`);
+        updateTip($(".cast-mode", hud), B.autocast
+          ? "Auto-cast — warriors and your Totem cast automatically when ready (toggle in Pause or Settings)"
+          : "Manual casting — press Q/W/E/A/S or tap Cast when an ability is ready (toggle Auto-cast in Pause or Settings)");
         if (B.endless) $(".keep-name", hud).textContent = B.stage.name;
         const spK = B.player.spellCd / T.spell.cd;
         const spellReason = T.spell.unavailable?.(B);
@@ -1205,6 +1221,7 @@
           dep.dataset.n = alive; dep.innerHTML = "";
           for (let i = 0; i < Math.min(alive, 8); i++) dep.append(h("i"));
           if (alive > 8) dep.append(h("b", {}, "+" + (alive - 8)));
+          updateTip(dep, `Active warriors on the lane: ${alive}`);
         }
         B.slots.forEach((s, i) => {
           const cost = B.costOf(s), cdMax = 1.5 + s.stats.cost / 45;

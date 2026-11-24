@@ -721,15 +721,21 @@
       const pf = this.player.flash || 0;
       const baseFrame = this.player.animT > 0 ? 4 + Math.min(4, Math.floor((0.5 - this.player.animT) * 10)) : Math.floor(t * 4) % 4;
       BC.drawFrame(g, "bases:" + this.tribe.id, baseFrame, BASE_X - 40, LANE_Y - 82, 2.5);
-      if (pf > 0) { g.fillStyle = "rgba(255,0,0,0.25)"; g.fillRect(BASE_X - 40, LANE_Y - 82, 80, 80); }
-      BC.drawFrame(g, "props:campfire", Math.floor(t * 7) % 4, BASE_X + 20, LANE_Y - 26, 1);
-      BC.drawFrame(g, "props:lantern", Math.floor(t * 6) % 4, BASE_X - 30, LANE_Y - 44, 1);
+      if (pf > 0) {
+        g.globalCompositeOperation = "lighter"; g.globalAlpha = 0.45;
+        BC.drawFrame(g, "bases:" + this.tribe.id, baseFrame, BASE_X - 40, LANE_Y - 82, 2.5);
+        g.globalCompositeOperation = "source-over"; g.globalAlpha = 1;
+      }
+      BC.drawFrame(g, "props:campfire", Math.floor(t * 7) % 4, BASE_X + 20, LANE_Y - 38, 1);
       const ef = this.enemy.flash || 0;
       const keepCell = (window.BC_ASSETS?.keeps?.[this.stage.keep]?.cell) || 32;
       BC.drawFrame(g, "keeps:" + this.stage.keep, 0, KEEP_X - 40, LANE_Y - 78, 80 / keepCell, false, keepCell);
-      if (ef > 0) { g.fillStyle = "rgba(255,255,255,0.25)"; g.fillRect(KEEP_X - 40, LANE_Y - 78, 80, 80); }
-      BC.drawFrame(g, "props:brazier", Math.floor(t * 8) % 4, KEEP_X - 58, LANE_Y - 30, 1);
-      BC.drawFrame(g, "props:lantern", Math.floor(t * 6 + 2) % 4, KEEP_X + 8, LANE_Y - 44, 1);
+      if (ef > 0) {
+        g.globalCompositeOperation = "lighter"; g.globalAlpha = 0.45;
+        BC.drawFrame(g, "keeps:" + this.stage.keep, 0, KEEP_X - 40, LANE_Y - 78, 80 / keepCell, false, keepCell);
+        g.globalCompositeOperation = "source-over"; g.globalAlpha = 1;
+      }
+      BC.drawFrame(g, "props:brazier", Math.floor(t * 8) % 4, KEEP_X - 58, LANE_Y - 38, 1);
 
       // zones
       for (const z of this.zones) {
@@ -742,6 +748,20 @@
       // entities (back to front)
       const list = this.ents.slice().sort((a, b) => a.yOff - b.yOff);
       for (const e of list) this.drawEnt(g, e);
+
+      // foreground lamp posts along the bottom edge of the lane
+      for (const [lx, phase] of [[BASE_X - 30, 0], [KEEP_X + 8, 2]]) {
+        const ly = LANE_Y - 20;
+        g.fillStyle = "rgba(0,0,0,0.35)";
+        g.beginPath(); g.ellipse(lx + 16, ly + 31, 7, 2.5, 0, 0, Math.PI * 2); g.fill();
+        const pulse = BC.reducedMotion ? 1 : 0.85 + 0.15 * Math.sin(t * 5 + phase);
+        const glow = g.createRadialGradient(lx + 16, ly + 9, 1, lx + 16, ly + 9, 18);
+        glow.addColorStop(0, `rgba(255,190,90,${(0.28 * pulse).toFixed(3)})`);
+        glow.addColorStop(1, "rgba(255,140,40,0)");
+        g.fillStyle = glow;
+        g.fillRect(lx - 2, ly - 9, 36, 36);
+        BC.drawFrame(g, "props:lantern", Math.floor(t * 6 + phase) % 4, lx, ly, 1);
+      }
 
       // fx
       for (const f of this.fx) {
@@ -786,15 +806,13 @@
       }
       if (e.dead) g.globalAlpha = Math.max(0, e.deathT / 0.4);
       if (e.kind === "decoy") g.globalAlpha = 0.45 + 0.1 * Math.sin(this.t * 10);
-      if (e.kind === "enemy" && e.anim === "walk") {     // bob + lean so stiff sprites feel alive
-        const bob = Math.abs(Math.sin(e.age * 8)) * 1.5;
-        BC.drawFrame(g, e.sprite, frame, x, y - bob, sc, flip);
-      } else {
-        BC.drawFrame(g, e.sprite, frame, x, y, sc, flip);
-      }
+      const bob = (e.kind === "enemy" && e.anim === "walk" && !BC.reducedMotion)
+        ? Math.abs(Math.sin(e.age * 8)) * 1.5
+        : 0;
+      BC.drawFrame(g, e.sprite, frame, x, y - bob, sc, flip);
       if (e.flash > 0 && !e.dead) {
         g.globalCompositeOperation = "lighter"; g.globalAlpha = 0.5;
-        BC.drawFrame(g, e.sprite, frame, x, y, sc, flip);
+        BC.drawFrame(g, e.sprite, frame, x, y - bob, sc, flip);
         g.globalCompositeOperation = "source-over";
       }
       g.globalAlpha = 1;
