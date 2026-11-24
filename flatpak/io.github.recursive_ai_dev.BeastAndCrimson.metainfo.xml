@@ -64,7 +64,7 @@
   </content_rating>
 
   <releases>
-    <release version="0.10.1" date="2026-11-24">
+    <release version="0.10.2" date="2026-11-24">
       <description>
         <p>Apache-2.0 release with Electron desktop wrapper, Flatpak metadata, non-intrusive HUD tooltips, and battle polish.</p>
       </description>
