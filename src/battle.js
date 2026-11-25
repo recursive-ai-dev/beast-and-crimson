@@ -45,7 +45,7 @@
       this.ballistaT = 0;
       this.wave = 1;
       this.waveT = 42;
-      this.threat = 0;
+      this.threat = 14 + this.stageIdx * 4;
       this.nextFoe = null;
       this.surgeT = BC.TUNE.surgeEvery;
       this.midBossSpawned = false;

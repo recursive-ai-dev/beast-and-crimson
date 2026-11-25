@@ -64,6 +64,11 @@
   </content_rating>
 
   <releases>
+    <release version="0.10.5" date="2026-11-24">
+      <description>
+        <p>Added enemy opening vanguard threat and progressive per-stage pace scaling across Chapters 1–10.</p>
+      </description>
+    </release>
     <release version="0.10.4" date="2026-11-24">
       <description>
         <p>Balance pass across Goldclaw, Bloodfang, and Guardvaw unit costs, cooldowns, and economy, plus itch.io butler helpers.</p>

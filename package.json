@@ -1,6 +1,6 @@
 {
   "name": "beast-and-crimson",
-  "version": "0.10.4",
+  "version": "0.10.5",
   "description": "An offline dark fantasy lane battler. The game itself has no dependencies; these are development tools only.",
   "author": {
     "name": "recursive-ai-dev",

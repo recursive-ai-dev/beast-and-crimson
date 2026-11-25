@@ -168,29 +168,29 @@
     S("Bloodwood Forest", "moss", "oldstone", 900, ["collector", "collector", "carrion"], 1,
       "The crimson leaves fall upward here, back toward the branches that bled them. The collectors came at dusk, and the forest drank what they left.",
       { hazard: { id: "canopy", name: "Crimson Canopy", desc: "Bleeding leaves mend all warriors for +1.5 HP/s." } }),
-    S("Obsidian Wastes", "lava", "cinder", 1100, ["collector", "levy", "hound"], 1,
+    S("Obsidian Wastes", "lava", "cinder", 1100, ["collector", "levy", "hound"], 1.02,
       "Glass grows where the screaming stopped. Every shard holds the last face that saw it form.",
       { hazard: { id: "lava", name: "Volcanic Fissures", desc: "Superheated ground scorches all combatants for 2 HP/s." } }),
-    S("The Whispering Caves", "cobble", "oldstone", 1300, ["levy", "debt", "carrion"], 1,
+    S("The Whispering Caves", "cobble", "oldstone", 1300, ["levy", "debt", "carrion"], 1.05,
       "The echoes repeat your name before you speak it. Some of them are still asking to be let out."),
-    S("Sanguine Marshes", "mud", "moor", 1500, ["drowned", "collector", "levy", "debt"], 1,
+    S("Sanguine Marshes", "mud", "moor", 1500, ["drowned", "collector", "levy", "debt"], 1.08,
       "The water is red because it remembers. Your wife's name is written somewhere beneath the reeds.",
       { hazard: { id: "marsh", name: "Clinging Mire", desc: "Deep mud slows movement across the lane by 12%." } }),
-    S("Abyssal Shore", "sand", "coastal", 1700, ["drowned", "inquisitor", "hound"], 1,
+    S("Abyssal Shore", "sand", "coastal", 1700, ["drowned", "inquisitor", "hound"], 1.12,
       "Tides here pull inward, never out. The drowned stand in rows beneath the surface, still waiting to pay.",
       { midBoss: "drowned", midBossName: "The Drowned Warden", hazard: { id: "tide", name: "Inward Tide", desc: "The undertow pulls warriors +3 move speed toward the keep." } }),
-    S("The Iron Fortress", "cobble", "oldstone", 2000, ["knight", "levy", "inquisitor", "golem"], 1,
+    S("The Iron Fortress", "cobble", "oldstone", 2000, ["knight", "levy", "inquisitor", "golem"], 1.16,
       "Iron walls, iron gates, iron men who sleep standing. Its foundations were mixed with the ash of the first rebellion.",
       { midBoss: "golem", midBossName: "Foundry Colossus", hazard: { id: "fort", name: "Keep Ballista", desc: "The keep fires a heavy iron bolt at your front warrior every 12s." } }),
-    S("Shadow Peaks", "snow", "moor", 2200, ["hound", "carrion", "knight", "inquisitor"], 1,
+    S("Shadow Peaks", "snow", "moor", 2200, ["hound", "carrion", "knight", "inquisitor"], 1.18,
       "Snow falls black on the high passes. The hermits say the mountain is a grave the sky dug for itself.",
       { hazard: { id: "blizzard", name: "Black Blizzard", desc: "Blinding snow reduces ranged attack reach by 15%." } }),
-    S("Ebon Plains", "dirt", "cinder", 2500, ["golem", "knight", "debt", "hound"], 1,
+    S("Ebon Plains", "dirt", "cinder", 2500, ["golem", "knight", "debt", "hound"], 1.20,
       "The grass bends toward the obelisk like worshippers. Those who lie down in it never stand back up the same."),
-    S("Crimson Desert", "sand", "cinder", 2800, ["golem", "inquisitor", "drowned", "knight", "carrion"], 1,
+    S("Crimson Desert", "sand", "cinder", 2800, ["golem", "inquisitor", "drowned", "knight", "carrion"], 1.22,
       "The dunes are made of red sand ground from old armies. Every storm buries a war and uncovers another.",
       { hazard: { id: "sandstorm", name: "Bone-Sand Gale", desc: "Scouring winds slow all attack speeds by 10%." } }),
-    S("Spirit Vale — The Collector's Throne", "moss", "moor", 3500, ["knight", "golem", "inquisitor", "levy", "drowned"], 1,
+    S("Spirit Vale — The Collector's Throne", "moss", "moor", 3500, ["knight", "golem", "inquisitor", "levy", "drowned"], 1.24,
       "The ghosts here kneel to no one but him. Tonight they will watch a king learn what a debt is.", { boss: "king" }),
   ];
 
@@ -299,8 +299,8 @@
     startGold: 250, income: 16, incomeGrowth: 0.12, incomeCap: 34,
     unitHp: 1.4, unitDmg: 1.15,
     enemyHp: 0.09, enemyDmg: 0.06, enemyDef: 0.04,   // per-stage growth
-    threat: 3, threatStage: 0.55, threatRamp: 90,      // enemy budget/s (+ per stage, + t/ramp)
-    surgeEvery: 40, surgeSeconds: 10,                  // surge = 10s of budget at once
+    threat: 3.3, threatStage: 0.55, threatRamp: 85,      // enemy budget/s (+ per stage, + t/ramp)
+    surgeEvery: 36, surgeSeconds: 10,                  // surge = 10s of budget at once
     baseHp: 1200,
   };
 
