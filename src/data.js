@@ -15,14 +15,14 @@
       bgScene: "pits",
       spell: {
         name: "Blood Sacrifice", cd: 28,
-        desc: "Spill 8% of the Totem's current life: all deployed warriors gain +35% damage and +35% attack speed for 6s. Requires at least 35% Totem health and a deployed warrior.",
+        desc: "Spill 5% of the Totem's current life: all deployed warriors gain +35% damage and +35% attack speed for 7s. Requires at least 35% Totem health and a deployed warrior.",
         unavailable: (B) => !B.alliesNear(240, 500).length ? "Deploy a warrior first" : B.player.hp < B.player.max * 0.35 ? "Requires at least 35% Totem health" : "",
         run: (B) => {
           const allies = B.alliesNear(240, 500);
           if (B.tribe.spell.unavailable(B)) return false;
-          B.player.hp = Math.max(1, B.player.hp * 0.92);
+          B.player.hp = Math.max(1, B.player.hp * 0.95);
           B.player.flash = 0.25;
-          allies.forEach(a => { B.buff(a, "dmg", 1.35, 6); B.buff(a, "atkspd", 1.35, 6); B.impact(a, a); });
+          allies.forEach(a => { B.buff(a, "dmg", 1.35, 7); B.buff(a, "atkspd", 1.35, 7); B.impact(a, a); });
         },
       },
     },
@@ -47,22 +47,22 @@
     greed: {
       id: "greed", name: "Goldclaw", word: "Pasea", pron: "/pa'se.a/",
       colors: { slab: "#006400", ink: "#FFD700", bg: "#15140c", eyes: "#FFD700", accent: "#FFD700" },
-      passive: "Gold flows 40% faster and every kill pays half again.",
+      passive: "Gold flows 25% faster and every kill pays 35% more.",
       threat: "They taxed your dead. Now you will tax theirs.",
-      mods: { income: 1.4, bounty: 1.5 },
+      mods: { income: 1.25, bounty: 1.35 },
       bgScene: "cave",
       spell: {
-        name: "Royal Bribe", cd: 28,
-        desc: "Buy off the strongest non-boss foe, fully healed and shielded, to fight for Goldclaw and pay you 35 gold. With no foe to buy, mint 90 gold.",
+        name: "Royal Bribe", cd: 34,
+        desc: "Buy off the strongest non-boss foe at 75% life to fight for Goldclaw and pay you 25 gold. With no foe to buy, mint 75 gold.",
         run: (B) => {
           const foes = B.foesOf("player").filter(e => !(e.def && e.def.boss)).sort((a, b) => b.hp - a.hp);
           if (foes[0]) {
             const f = foes[0];
-            f.side = "player"; f.dir = 1; f.hp = f.s.hp; f.shield = 60;
+            f.side = "player"; f.dir = 1; f.hp = f.s.hp * 0.75; f.shield = 0;
             B.text(f.x, 140, "BRIBED!", "#FFD700", 1.1);
-            B.addGold(35, f);
+            B.addGold(25, f);
           } else {
-            B.addGold(90, { x: 60 });
+            B.addGold(75, { x: 60 });
           }
         },
       },
@@ -78,24 +78,24 @@
 
   const UNITS = {
     // ---- GREED (Goldclaw) -------------------------------------------------
-    "Golden Totemist": U("greed", "Ranged", [60, 120, 14, 4, 1.0, 22, 60, 20, 10, 0.5],
-      { name: "Totem Tithe", desc: "Hurls a golden totem at the nearest foe in reach and always skims 20 gold.", fx: "nearest", run: (B, u) => { const t = B.nearestEnemy(u, u.s.range * 1.5); if (t) { B.hit(u, t, u.s.abpwr * 2.5); B.impact(u, t); } B.addGold(20, u); } }),
+    "Golden Totemist": U("greed", "Ranged", [70, 120, 14, 4, 1.0, 22, 60, 20, 11, 0.5],
+      { name: "Totem Tithe", desc: "Hurls a golden totem at the nearest foe in reach and always skims 15 gold.", fx: "nearest", run: (B, u) => { const t = B.nearestEnemy(u, u.s.range * 1.5); if (t) { B.hit(u, t, u.s.abpwr * 2.5); B.impact(u, t); } B.addGold(15, u); } }),
     "Baron": U("greed", "Support", [150, 160, 10, 6, 0.7, 18, 30, 30, 14, 1],
       { name: "Crown Levy", desc: "Crowns the strongest foe for heavy damage and levies 10 gold plus 10% of your purse (90 at most).", run: (B, u) => { const t = B.strongestEnemy(u, 220); if (t) { B.hit(u, t, u.s.abpwr * 3); B.impact(u, t); } B.addGold(Math.min(80, Math.floor(B.gold * 0.1)) + 10, u); } }),
     "Pledge Warbeast": U("greed", "Bruiser", [110, 260, 26, 8, 0.9, 30, 22, 25, 12, 1],
       { name: "Pledged Fang", desc: "A frenzied bite for 4x ability power that heals for 30% of the damage.", run: (B, u) => { const t = B.nearestEnemy(u, u.s.range + 30); if (!t) return false; const d = B.hit(u, t, u.s.abpwr * 4); B.heal(u, d * 0.3); B.impact(u, t); } }),
     "Resource Warlock": U("greed", "Caster", [160, 110, 18, 2, 0.8, 18, 90, 20, 12, 0.5],
       { name: "Compound Interest", desc: "Opens the vault: damages every foe in range for ability power + 1 per 15 gold held.", run: (B, u) => { const ts = B.enemiesNear(u.x, u.s.range + 20); if (!ts.length) return false; const amt = u.s.abpwr + B.gold / 15; ts.forEach(t => { B.hit(u, t, amt); B.impact(u, t); }); } }),
-    "Mine Spirit": U("greed", "Economy", [80, 90, 6, 2, 0.6, 14, 40, 15, 9, 1],
-      { name: "Nugget Burst", desc: "Passive: +3 gold/s while alive. Active: shakes loose 40 + ability power gold.", run: (B, u) => { B.addGold(40 + u.s.abpwr, u); B.impact(u, u); } },
-      { passive: { gold: 3 } }),
+    "Mine Spirit": U("greed", "Economy", [90, 90, 6, 2, 0.6, 14, 40, 15, 11, 1],
+      { name: "Nugget Burst", desc: "Passive: +2 gold/s while alive. Active: shakes loose 25 + ability power gold.", run: (B, u) => { B.addGold(25 + u.s.abpwr, u); B.impact(u, u); } },
+      { passive: { gold: 2 } }),
     "Goldweb Spider": U("greed", "Control", [100, 140, 12, 4, 1.0, 26, 50, 15, 11, 0.5],
       { name: "Gilded Web", desc: "Webs the ground ahead: foes inside are slowed 50% for 4s and take light damage.", run: (B, u) => { const ts = B.enemiesNear(u.x + 40 * u.dir, 70); if (!ts.length) return false; ts.forEach(t => { B.hit(u, t, u.s.abpwr); B.status(t, "slow", 4, 0.5); B.impact(u, t); }); } }),
     "Totem Insurer": U("greed", "Guardian", [120, 200, 10, 12, 0.8, 20, 25, 30, 15, 1],
       { name: "Blood Insurance", desc: "Allies nearby gain a shield worth 3x ability power. Allies who fall in the next 8s refund half their cost.", run: (B, u) => { B.alliesNear(u.x, 110).forEach(a => { B.shield(a, u.s.abpwr * 3); B.status(a, "insured", 8, 0.5); B.impact(u, a); }); } }),
     "Golden Archer": U("greed", "Sniper", [130, 100, 22, 2, 0.9, 24, 140, 30, 10, 0.3],
       { name: "Gilded Shaft", desc: "An arrow that pierces every foe in a long line for 2x ability power.", run: (B, u) => { const ts = B.enemiesBetween(u.x, u.x + u.dir * u.s.range * 1.6); if (!ts.length) return false; ts.forEach(t => { B.hit(u, t, u.s.abpwr * 2); B.impact(u, t); }); } }),
-    "Golden Beffalo": U("greed", "Tank", [140, 420, 14, 18, 0.6, 20, 22, 20, 14, 2],
+    "Golden Beffalo": U("greed", "Tank", [140, 360, 14, 14, 0.6, 20, 22, 20, 14, 2],
       { name: "Golden Horns", desc: "Charges into the line, damaging and hurling back every foe close by.", run: (B, u) => { const ts = B.enemiesNear(u.x + 20 * u.dir, 50); if (!ts.length) return false; ts.forEach(t => { B.hit(u, t, u.s.abpwr * 2); B.knock(t, 40 * u.dir); B.impact(u, t); }); } }),
     "Trade Pact Alpha": U("greed", "Commander", [200, 180, 12, 6, 0.8, 20, 60, 25, 16, 1],
       { name: "Coin Rain", desc: "Gold falls on the enemy line (2x ability power, area) and all deployments cost 25% less for 8s.", run: (B, u) => { const t = B.nearestEnemy(u, 200); if (t) B.enemiesNear(t.x, 60).forEach(e => { B.hit(u, e, u.s.abpwr * 2); B.impact(u, e); }); B.side(u).discountT = 8; } }),
@@ -111,19 +111,19 @@
       { name: "Rend Time", desc: "Ethereal claws slow every foe nearby by 60% for 5s and deal light damage.", run: (B, u) => { const ts = B.enemiesNear(u.x, 110); if (!ts.length) return false; ts.forEach(t => { B.status(t, "slow", 5, 0.6); B.hit(u, t, u.s.abpwr * 0.5); B.impact(u, t); }); } }),
     "Mystic Engineer": U("defense", "Builder", [140, 140, 16, 8, 0.8, 16, 70, 25, 16, 1],
       { name: "Rune Mending", desc: "Repairs the Totem for 4x ability power and fires turret bolts at three foes.", run: (B, u) => { B.healBase(B.side(u), u.s.abpwr * 4); B.enemiesNear(u.x, 160).slice(0, 3).forEach(t => { B.hit(u, t, u.s.abpwr * 1.5); B.impact(u, t); }); } }),
-    "Warden of the Wild": U("defense", "Jailer", [120, 220, 20, 12, 0.8, 20, 30, 20, 13, 1],
+    "Warden of the Wild": U("defense", "Jailer", [100, 300, 26, 14, 0.8, 20, 30, 20, 11, 1],
       { name: "Imprison", desc: "Locks the strongest foe nearby in vine-bound bars for 4s, dealing ability power damage.", run: (B, u) => { const t = B.strongestEnemy(u, 140); if (!t) return false; B.status(t, "stun", 4); B.hit(u, t, u.s.abpwr); B.impact(u, t); } }),
-    "Illusion Weaver": U("defense", "Trickster", [130, 110, 14, 4, 0.9, 20, 60, 20, 15, 0.5],
+    "Illusion Weaver": U("defense", "Trickster", [115, 110, 18, 4, 0.9, 20, 60, 20, 15, 0.5],
       { name: "Mirror Host", desc: "Weaves two illusory decoys that soak blows (each with 4x ability power life).", run: (B, u) => { for (let i = 0; i < 2; i++) B.decoy(u, u.x + (18 + i * 14) * u.dir, u.s.abpwr * 2 * 2); B.impact(u, u); } }),
-    "Guardian of the Grove": U("defense", "Healer", [150, 200, 12, 10, 0.7, 16, 50, 15, 18, 2],
+    "Guardian of the Grove": U("defense", "Healer", [120, 250, 18, 10, 0.7, 16, 50, 15, 15, 2],
       { name: "Healing Grove", desc: "Raises a grove that heals allies inside for ability power each second for 6s.", run: (B, u) => { B.zone(u, u.x, 80, 6, (a) => B.heal(a, u.s.abpwr), "ally"); B.impact(u, u); } }),
-    "Ritualist": U("defense", "Blood Rite", [140, 150, 21, 6, 0.8, 18, 60, 30, 14, 0],
+    "Ritualist": U("defense", "Blood Rite", [120, 200, 28, 6, 0.8, 18, 60, 30, 14, 1],
       { name: "Blood Rite", desc: "Spills 25% of its own life: allies nearby deal +40% damage for 6s.", run: (B, u) => { B.hurtSelf(u, u.hp * 0.25); B.alliesNear(u.x, 120).forEach(a => { B.buff(a, "dmg", 1.4, 6); B.impact(u, a); }); } }),
-    "Spirit Guardian": U("defense", "Reviver", [220, 180, 12, 10, 0.7, 16, 50, 0, 25, 1],
+    "Spirit Guardian": U("defense", "Reviver", [165, 230, 18, 10, 0.7, 16, 50, 0, 18, 1],
       { name: "Resurrection", desc: "Calls the most recently fallen ally back at 60% life.", unavailable: "No fallen ally to revive", run: (B, u) => { const r = B.revive(u, 0.6); if (!r) return false; B.impact(u, r); } }),
 
     // ---- OFFENSE (Bloodfang) ----------------------------------------------
-    "Beast Berserker": U("offense", "Bruiser", [80, 200, 24, 4, 1.1, 34, 22, 20, 10, 0.5],
+    "Beast Berserker": U("offense", "Bruiser", [80, 230, 24, 6, 1.1, 34, 22, 20, 10, 0.5],
       { name: "Frenzy", desc: "+60% attack speed and +30% damage for 5s.", run: (B, u) => { B.buff(u, "atkspd", 1.6, 5); B.buff(u, "dmg", 1.3, 5); B.impact(u, u); } }),
     "Warbeast Drummer": U("offense", "Rallier", [120, 150, 10, 6, 1.0, 22, 30, 0, 14, 1],
       { name: "War Rhythm", desc: "Allies nearby attack 40% faster for 6s.", run: (B, u) => { B.alliesNear(u.x, 140).forEach(a => { B.buff(a, "atkspd", 1.4, 6); B.impact(u, a); }); } }),
@@ -133,16 +133,16 @@
       { name: "Silent Death", desc: "Steps through shadow to the weakest foe in sight: 4x ability power, executes below 25% life.", run: (B, u) => { const t = B.weakestEnemy(u, 240); if (!t) return false; u.x = t.x - 14 * u.dir; if (t.hp < t.s.hp * 0.25) B.hit(u, t, t.hp + 999, true); else B.hit(u, t, u.s.abpwr * 4); B.impact(u, t); } }),
     "Fire Spiritmaster": U("offense", "Caster", [160, 120, 16, 2, 0.8, 18, 90, 30, 12, 0.3],
       { name: "Pyroclasm", desc: "Erupts the ground under the nearest foe: 2.5x ability power in an area plus burning.", run: (B, u) => { const t = B.nearestEnemy(u, u.s.range + 40); if (!t) return false; B.enemiesNear(t.x, 55).forEach(e => { B.hit(u, e, u.s.abpwr * 2.5); B.status(e, "burn", 4, u.s.abpwr * 0.25); B.impact(u, e); }); } }),
-    "Serpent Charmer": U("offense", "Poisoner", [110, 120, 12, 4, 0.9, 22, 70, 20, 10, 0.5],
+    "Serpent Charmer": U("offense", "Poisoner", [100, 135, 12, 4, 0.9, 22, 70, 20, 10, 0.5],
       { name: "Serpent Venom", desc: "Poisons every foe in range for ability power per second over 5s.", run: (B, u) => { const ts = B.enemiesNear(u.x, u.s.range + 30); if (!ts.length) return false; ts.forEach(t => { B.status(t, "poison", 5, u.s.abpwr); B.impact(u, t); }); } }),
-    "Bloodthirsty Warlord": U("offense", "Warlord", [180, 320, 22, 12, 0.9, 24, 24, 20, 14, 1],
+    "Bloodthirsty Warlord": U("offense", "Warlord", [165, 350, 22, 12, 0.9, 24, 24, 20, 14, 1],
       { name: "Bloodlust", desc: "Passive: +8% damage per kill (max 10). Active: heals 25% and drinks 50% of damage dealt for 6s.", run: (B, u) => { B.heal(u, u.s.hp * 0.25); B.status(u, "lifesteal", 6, 0.5); B.impact(u, u); } },
       { passive: { killStack: 0.08 } }),
-    "Battle Mage": U("offense", "Caster", [170, 120, 14, 4, 0.8, 20, 100, 35, 12, 0.3],
+    "Battle Mage": U("offense", "Caster", [150, 135, 14, 4, 0.8, 20, 100, 35, 12, 0.3],
       { name: "Arcane Volley", desc: "Four arcane bolts strike random foes in range for 2.5x ability power each.", run: (B, u) => { const ts = B.enemiesNear(u.x, u.s.range + 40); if (!ts.length) return false; for (let i = 0; i < 4; i++) { const t = ts[B.rnd(ts.length)]; B.hit(u, t, u.s.abpwr * 2.5); B.impact(u, t); } } }),
-    "Thunderhoof Juggernaut": U("offense", "Juggernaut", [200, 480, 20, 16, 0.6, 26, 24, 25, 14, 2],
+    "Thunderhoof Juggernaut": U("offense", "Juggernaut", [170, 480, 26, 16, 0.75, 26, 24, 25, 12, 2],
       { name: "Thunder Charge", desc: "Charges forward, knocking back and stunning foes in its path for 1.5s.", run: (B, u) => { u.x = Math.max(34 + 18, Math.min(446 - 22, u.x + 50 * u.dir)); const ts = B.enemiesNear(u.x, 50); ts.forEach(t => { B.hit(u, t, u.s.abpwr * 2); B.knock(t, 50 * u.dir); B.status(t, "stun", 1.5); B.impact(u, t); }); } }),
-    "Skytalon Raider": U("offense", "Raider", [130, 130, 18, 2, 1.2, 44, 22, 20, 10, 0.5],
+    "Skytalon Raider": U("offense", "Raider", [115, 155, 18, 4, 1.2, 44, 22, 20, 10, 0.5],
       { name: "Swoop", desc: "Flies over the front line to strike the rearmost foe for 3x ability power.", run: (B, u) => { const t = B.rearmostEnemy(u, 260); if (!t) return false; B.hit(u, t, u.s.abpwr * 3); B.impact(u, t); } }),
   };
 

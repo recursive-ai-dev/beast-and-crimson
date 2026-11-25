@@ -1,6 +1,6 @@
 {
   "name": "beast-and-crimson",
-  "version": "0.10.3",
+  "version": "0.10.4",
   "description": "An offline dark fantasy lane battler. The game itself has no dependencies; these are development tools only.",
   "author": {
     "name": "recursive-ai-dev",
@@ -16,6 +16,8 @@
     "start": "./bc-start",
     "electron": "electron .",
     "dist": "bash tools/build_release.sh",
+    "itch:build": "bash tools/build_itch.sh",
+    "itch:push": "bash tools/push_itch.sh",
     "test": "npm run test:unit && npm run test:browser",
     "test:unit": "node tools/check_battle.cjs && node tools/check_lifecycle.cjs && node tools/check_intro_timeline.cjs && node tools/sim.js --runs 1",
     "test:browser": "node tools/check_browser.cjs",

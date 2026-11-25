@@ -32,7 +32,7 @@ modules:
     sources:
       - type: git
         url: https://github.com/recursive-ai-dev/beast-and-crimson.git
-        tag: v0.10.3
+        tag: v0.10.4
       - type: archive
         url: https://github.com/electron/electron/releases/download/v45.5.0/electron-v45.5.0-linux-x64.zip
         sha256: 36b44cd0c3d355ee74557bea2353e4539f96e1a09733a52a052bd093134a6142

@@ -64,6 +64,11 @@
   </content_rating>
 
   <releases>
+    <release version="0.10.4" date="2026-11-24">
+      <description>
+        <p>Balance pass across Goldclaw, Bloodfang, and Guardvaw unit costs, cooldowns, and economy, plus itch.io butler helpers.</p>
+      </description>
+    </release>
     <release version="0.10.3" date="2026-11-24">
       <description>
         <p>Apache-2.0 release with Electron desktop wrapper, Flatpak metadata, non-intrusive HUD tooltips, and battle polish.</p>
