@@ -108,11 +108,11 @@ Effort: S (under an hour), M (a few hours), L (a day or more).
   It is still visible 2.5 s after a deploy and covers 14.8% of the battlefield on a landscape phone.
   *Fix:* a pinned tooltip after a success dismisses itself quickly; failures keep their longer explanation.
 
-- [ ] **15. Campaign balance is only measured for one lineup, and Bloodfang hits a wall.** Effort L. *Measured.*
+- [x] **15. Campaign balance is only measured for one lineup, and Bloodfang hits a wall.** Effort L. *Measured.*
   Bloodfang wins stage 10 about 0 to 1 time in 6 without burns, and Goldclaw wins every time.
   The simulator tests only the first five units with no burns, so it cannot show whether a
   viable path exists (Roadmap milestone 2).
-  *Fix:* scenarios with alternate lineups, mercenaries and obtainable burns, then evidence-based tuning.
+  *Fix:* `tools/balance.cjs` and `tools/sim.js` cover baseline, alternate late-roster, mercenary, and burn scenarios; tuned Bloodfang (`Blood Sacrifice` lifesteal + bruiser/caster durability), Guardvaw's late roster, Goldclaw's `Royal Bribe`, and Endless Ash/burn rewards.
 
 - [x] **16. Forging can destroy your best burns without saying which.** Effort S. *Read.*
   It consumes the first three in inventory order, the confirmation names none of them, and
@@ -133,17 +133,17 @@ Effort: S (under an hour), M (a few hours), L (a day or more).
   With `image-rendering: pixelated`, that heavy downscale also aliases badly.
   *Fix:* `tools/optimize_art.py` resizes and palette-reduces `assets/art/` (23 MB -> 2.7 MB).
 
-- [ ] **20. Screen reader support has real gaps.** Effort S. *Measured with axe-core.*
+- [x] **20. Screen reader support has real gaps.** Effort S. *Measured with axe-core.*
   26 images have no `alt` (critical), `aria-label` is used on role-less elements, heading order is wrong, and most content is outside landmarks.
-  *Fix:* resolve every violation and add an axe regression check.
+  *Fix:* wrapped screens in `<main id="app">`, added `alt` on all images, assigned explicit ARIA roles to labeled elements, normalized `h1`–`h4` hierarchy, and added a browser accessibility regression check.
 
-- [ ] **21. The HUD performs about 1,064 DOM writes per second, mostly unchanged values.** Effort S. *Measured.*
+- [x] **21. The HUD performs about 1,064 DOM writes per second, mostly unchanged values.** Effort S. *Measured.*
   This includes 392 `aria-label` rewrites per second, which hurts assistive technology, and about 30 forced layouts per second.
-  *Fix:* cache element references and write only when a value changes.
+  *Fix:* cached HUD element references, dirty-checked text/attribute/CSS writes, and verified 0 redundant DOM mutations when idle.
 
-- [ ] **22. Sound effects can clip, and each noise burst allocates a new buffer.** Effort S. *Read.*
+- [x] **22. Sound effects can clip, and each noise burst allocates a new buffer.** Effort S. *Read.*
   There is no limiter or voice cap, and auto-cast at 2× speed stacks many sawtooth voices.
-  *Fix:* a master limiter, per-effect rate limits, and shared noise buffers.
+  *Fix:* `DynamicsCompressorNode` limiters on effects and master buses, per-cue rate limiting, and shared `WeakMap` noise buffers.
 
 - [x] **23. Crowded fights stack hundreds of unreadable floating numbers.** Effort S. *Measured.*
   301 live effects were recorded in one crowded fight, and the lava hazard adds a number for every combatant each second.
@@ -155,9 +155,9 @@ Effort: S (under an hour), M (a few hours), L (a day or more).
 
 ## Tier 4: Robustness and maintainability
 
-- [ ] **25. Rewards are granted inside UI code, and Retreat can run twice.** Effort M. *Read.*
+- [x] **25. Rewards are granted inside UI code, and Retreat can run twice.** Effort M. *Read.*
   Achievement and burn logic lives in the UI closure with no unit tests. Retreat's confirmation does not recheck the battle, so a second confirmation during the curtain would grant rewards again.
-  *Fix:* move this to a pure, tested `core.js` function with a once-only guard.
+  *Fix:* moved to `BC.resolveBattleRewards` in `src/core.js` with a once-only `.resolved` guard, unit tests, and Retreat concurrency guard.
 
 - [x] **26. Large burn inventories are hard to use.** Effort S. *Read.* (Roadmap milestone 3)
   Sorting is by tier only, with no tier filter. Achievements are tucked inside Settings.
@@ -167,31 +167,31 @@ Effort: S (under an hour), M (a few hours), L (a day or more).
   A misspelt enemy in a stage pool crashes that stage at runtime, and the code has dead helpers.
   *Fix:* `BC.validateData()` covers units, lore, abilities, stats, and stage pools/bosses.
 
-- [ ] **28. A stalled image request hangs the loading screen forever.** Effort S. *Read.*
+- [x] **28. A stalled image request hangs the loading screen forever.** Effort S. *Read.*
   There is no timeout, and a failed stage image is cached as failed for the whole session.
-  *Fix:* a per-asset timeout, a retry for transient failures, and a visible reason if loading cannot finish.
+  *Fix:* `BC.loadImageWithRetry` adds per-asset timeouts and automatic retries, evicts failed stage/intro loads so later visits can retry, and reports fatal load errors clearly.
 
-- [ ] **29. No continuous integration.** Effort S. *Read.*
+- [x] **29. No continuous integration.** Effort S. *Read.*
   Nothing runs the checks on push, which is how #7 went unnoticed.
-  *Fix:* a GitHub Actions workflow for the headless and browser suites.
+  *Fix:* `.github/workflows/ci.yml` runs both headless unit/simulation and Playwright browser/audio suites on push and pull request.
 
-- [ ] **30. The docs have drifted from the code.** Effort S. *Read.*
+- [x] **30. The docs have drifted from the code.** Effort S. *Read.*
   The README's code map omits the intro modules and tooling, `data.js` points to a `docs/` folder that does not exist, and the roadmap's validation notes are stale.
-  *Fix:* bring the README and roadmap back in line.
+  *Fix:* brought `README.md`, `ROADMAP.md`, and `TODO.md` into alignment with the current modules, balance numbers, and tooling.
 
 ## Tier 5: Barely a concern
 
-- [ ] **31. No favicon, install manifest or offline cache for hosted builds.** Effort M. *Read.*
+- [x] **31. No favicon, install manifest or offline cache for hosted builds.** Effort M. *Read.*
   Every load logs a favicon 404, and a hosted build cannot be reopened offline.
-  *Fix:* an icon, a web manifest, and a versioned service worker.
+  *Fix:* linked `crest.png` favicon, added `manifest.webmanifest`, and registered versioned offline cache worker `sw.js`.
 
-- [ ] **32. Fonts ship as TTF.** Effort S. *Measured.*
+- [x] **32. Fonts ship as TTF.** Effort S. *Measured.*
   632 KB of fonts could be roughly half that as WOFF2.
-  *Fix:* convert them and update the `@font-face` rules.
+  *Fix:* `tools/build_woff.cjs` builds compressed `.woff` fonts (~50% smaller) with `.ttf` fallbacks in `@font-face`.
 
-- [ ] **33. No Content Security Policy, and one inline handler.** Effort S. *Read.*
+- [x] **33. No Content Security Policy, and one inline handler.** Effort S. *Read.*
   The game makes no network requests, so a strict policy costs nothing once `onerror=` is removed.
-  *Fix:* add the policy and remove inline handlers and styles.
+  *Fix:* added strict `<meta http-equiv="Content-Security-Policy">` and removed inline event handlers and static inline styles.
 
 - [x] **34. No release packaging.** Effort S. *Read.* (Roadmap milestone 5)
   Design docs and tooling would ship to players, and nothing produces a versioned build.

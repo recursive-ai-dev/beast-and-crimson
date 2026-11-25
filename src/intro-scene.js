@@ -7,13 +7,19 @@
 
   const art = {};
   let artLoad = null;
-  /** Load the intro-only sprites (assets/intro). Missing files just leave their props out. */
-  BC.loadIntroArt = () => artLoad || (artLoad = Promise.all(INTRO_ART.map(name => new Promise(resolve => {
-    const im = new Image();
-    im.onload = () => { art[name] = im; resolve(); };
-    im.onerror = () => resolve();
-    im.src = `assets/intro/${name}.png`;
-  }))));
+  /** Load the intro-only sprites (assets/intro). Missing or stalled files resolve cleanly without hanging boot. */
+  BC.loadIntroArt = () => artLoad || (artLoad = Promise.all(INTRO_ART.map(name => (
+    BC.loadImageWithRetry
+      ? BC.loadImageWithRetry(`assets/intro/${name}.png`, 6000, 1).then(({ ok, im }) => { if (ok) art[name] = im; return ok; })
+      : new Promise(resolve => {
+          const im = new Image();
+          im.onload = () => { art[name] = im; resolve(true); };
+          im.onerror = () => resolve(false);
+          im.src = `assets/intro/${name}.png`;
+        })
+  ))).then(results => {
+    if (results.some(ok => !ok)) artLoad = null;   // allow retry on a later replay
+  }));
 
   // ------------------------------------------------------------- helpers --
   const clamp = (v, lo = 0, hi = 1) => Math.min(hi, Math.max(lo, v));
@@ -127,6 +133,35 @@
       gr.addColorStop(0, rgb(color, alpha)); gr.addColorStop(1, rgb(color, 0));
       g.fillStyle = gr; g.fillRect(x - radius, y - radius, radius * 2, radius * 2);
     }
+    // Pixel-art fire bowl + flickering tongues so braziers match each shot's palette.
+    function brazierFire(g, x, y, t, calm, color = [255, 95, 24], scale = 1) {
+      const bx = Math.round(x), by = Math.round(y), f = calm ? 1 : 0.84 + 0.16 * Math.sin(t * 11 + x);
+      const midCol = mix(color, [255, 195, 85], 0.5), tipCol = mix(color, [255, 248, 200], 0.78);
+      // Dark iron bowl rim covering the raw prop's cyan pixels
+      g.fillStyle = "#1a0e0c"; g.fillRect(bx - Math.round(8 * scale), by - Math.round(16 * scale), Math.round(16 * scale), Math.round(6 * scale));
+      g.fillStyle = "#38201a"; g.fillRect(bx - Math.round(9 * scale), by - Math.round(16 * scale), Math.round(18 * scale), Math.round(2 * scale));
+      g.globalCompositeOperation = "lighter";
+      glow(g, bx, by - 18 * scale, 30 * scale, color, 0.42 * f);
+      g.globalCompositeOperation = "source-over";
+      const sway = calm ? 0 : Math.round(Math.sin(t * 9 + x * 0.3) * 1.5);
+      const h = Math.round((8 + (calm ? 1 : Math.sin(t * 13 + x) * 2)) * scale);
+      g.fillStyle = rgb(color, 0.95);
+      g.fillRect(bx - Math.round(6 * scale), by - Math.round(18 * scale) - Math.round(h * 0.45), Math.round(12 * scale), Math.round(h * 0.55));
+      g.fillRect(bx - Math.round(4 * scale) + sway, by - Math.round(18 * scale) - h, Math.round(8 * scale), h);
+      g.fillStyle = rgb(midCol, 0.95);
+      g.fillRect(bx - Math.round(3 * scale) + sway, by - Math.round(18 * scale) - Math.round(h * 0.78), Math.round(6 * scale), Math.round(h * 0.72));
+      g.fillStyle = rgb(tipCol, 0.95);
+      g.fillRect(bx - Math.round(1.5 * scale) + sway, by - Math.round(18 * scale) - Math.round(h * 0.45), Math.max(2, Math.round(3 * scale)), Math.round(h * 0.42));
+    }
+    function mistBands(g, y0, bands, alpha, t, calm, color = [145, 168, 210]) {
+      for (let i = 0; i < bands; i++) {
+        const y = Math.round(y0 + i * 7), driftX = calm ? 0 : ((t * (5 + i * 2.2)) % 90) - 45;
+        g.fillStyle = rgb(color, alpha * (1 - i / (bands + 1)));
+        for (let x = -PAD - 40; x < W + PAD + 40; x += 90) {
+          g.fillRect(Math.round(x + driftX + i * 19), y, 56 + (i % 3) * 12, 2);
+        }
+      }
+    }
     const layerCanvas = (paint) => {
       const c = makeCanvas(W + PAD * 2, H + PADY * 2), g = c.getContext("2d");
       g.imageSmoothingEnabled = false;
@@ -156,9 +191,15 @@
     function harvest() {
       const r = BC.makeRng(11);
       const far = layerCanvas(g => {
-        sky(g, [[0, [26, 14, 48]], [0.45, [118, 38, 58]], [0.72, [226, 128, 62]], [1, [246, 190, 100]]]);
-        stars(g, r, 40, 80); clouds(g, r, 7, 20, 100, "rgba(110,40,70,.55)");
-        ridge(g, r, 168, 70, "#3a1a38", "#6a2a48");
+        sky(g, [[0, [24, 12, 46]], [0.42, [116, 36, 58]], [0.72, [224, 122, 58]], [1, [248, 192, 102]]]);
+        stars(g, r, 42, 78);
+        // Pale crescent moon high at dusk + sinking harvest sun behind the far ridge
+        g.fillStyle = "rgba(255,238,205,.75)";
+        g.fillRect(391, 33, 4, 1); g.fillRect(390, 34, 3, 1); g.fillRect(389, 35, 3, 3); g.fillRect(390, 38, 3, 1); g.fillRect(391, 39, 4, 1);
+        blob(g, 112, 146, 22, 22, "rgba(255,205,110,.55)");
+        blob(g, 112, 146, 15, 15, "rgba(255,236,165,.82)");
+        clouds(g, r, 7, 20, 100, "rgba(110,38,68,.55)");
+        ridge(g, r, 168, 70, "#3a1a38", "#6e2c4a");
       });
       const mid = layerCanvas(g => { ridge(g, r, 182, 46, "#241028", "#43203a"); treeline(g, r, 182, 40, "#170a1c", 9); });
       const near = layerCanvas(g => {
@@ -168,17 +209,17 @@
         g.fillStyle = "#4a382c"; for (let x = -PAD; x < W + PAD; x += 11) g.fillRect(x, 230 + (x % 3), 4, 1);
       });
       return {
-        cam: [[22, 0, 1], [-14, -2, 1.07]], tint: [255, 140, 70, 0.07], rain: 0, fadeIn: 0.7,
+        cam: [[20, 0, 1], [-14, -2, 1.07]], tint: [255, 140, 70, 0.07], rain: 0, fadeIn: 0.65,
         layers: [[0.08, far], [0.22, mid], [0.45, near]],
         dynamic(g, st) {
           const { t, local, calm, P } = st;
           // setting sun glow + distant birds
           let [ox, oy] = P(0.08); g.save(); g.translate(ox, oy);
           g.globalCompositeOperation = "lighter";
-          glow(g, 110, 146, 110, [255, 160, 80], 0.25);
+          glow(g, 112, 144, 118, [255, 155, 75], 0.28);
           g.globalCompositeOperation = "source-over";
           if (!calm) {
-            g.fillStyle = "rgba(38,14,32,.65)";
+            g.fillStyle = "rgba(38,14,32,.68)";
             for (let b = 0; b < 5; b++) {
               const bx = ((180 + b * 24 + t * (9 + b)) % (W + 40)) - 20;
               const by = 48 + b * 7 + Math.sin(t * 4 + b * 1.7) * 2;
@@ -196,8 +237,8 @@
           for (const [x, y, s, k] of homes) {
             spr(g, intro.cottages, k, x, y, s, false, 32, [[40, 20, 50], 0.28]);
             const flick = calm ? 1 : 0.85 + 0.15 * Math.sin(t * 7 + x);
-            glow(g, x - 4 * s, y - 11 * s, 18 * s, [255, 170, 70], 0.32 * flick);
-            if (!calm && Math.random() < 0.05) smoke.push({ x: x + 6 * s, y: y - 27 * s, l: 0 });
+            glow(g, x - 4 * s, y - 11 * s, 18 * s, [255, 170, 70], 0.34 * flick);
+            if (!calm && Math.random() < 0.06) smoke.push({ x: x + 6 * s, y: y - 27 * s, l: 0 });
           }
           const fireFrame = calm ? 0 : Math.floor(t * 7) % 4;
           spr(g, img("props:campfire"), fireFrame, 162, 214, 1.1);
@@ -208,17 +249,28 @@
             if (s.l > 5) { smoke.splice(i, 1); continue; }
             g.fillStyle = `rgba(90,60,80,${0.28 * (1 - s.l / 5)})`; g.fillRect(Math.round(s.x + ox), Math.round(s.y + oy), 3 + s.l, 3 + s.l);
           }
-          // villagers at their doors, then mounted outriders + collectors on the road
+          // villagers at their doors, then mounted outriders + torch-bearing collectors on the road
           [ox, oy] = P(0.85); g.save(); g.translate(ox, oy);
-          const folk = [[140, 230, 0], [256, 232, 1], [374, 233, 2], [60, 233, 4]];
+          const folk = [[140, 230, 0], [238, 232, 1], [60, 233, 4]];
           for (const [x, y, k] of folk) spr(g, intro.villagers, k, x, y + (calm ? 0 : Math.sin(t * 2 + x) * 0.4), 1.5, false, 32, [[30, 12, 40], 0.45]);
-          const march = ease(clamp((local - 0.28) / 0.72));
+          const march = ease(clamp((local - 0.05) / 0.85));
           const cavStep = calm ? 0 : Math.floor(t * 8) % 4;
-          const cavX = lerp(W + 44, 250, march);
+          const cavX = lerp(W + 20, 268, march);
           spr(g, intro.cavalry, cavStep, cavX, 240, 1.45, false, 48, [[14, 6, 24], 0.5]);
           for (let i = 0; i < 4; i++) {
-            const x = lerp(W + 90 + i * 34, 306 + i * 34, march), step = Math.floor(t * 6) % 4;
-            spr(g, img("enemies:collector"), calm ? 0 : step, x, 238 + (i % 2) * 3, 1.7, false, 32, [[10, 4, 20], 0.55]);
+            const x = Math.round(lerp(W + 58 + i * 30, 316 + i * 30, march)), y = 238 + (i % 2) * 3;
+            const step = Math.floor(t * 6 + i) % 4;
+            spr(g, img("enemies:collector"), calm ? 0 : step, x, y, 1.7, false, 32, [[10, 4, 20], 0.55]);
+            // Collector's torch
+            if (i % 2 === 0) {
+              const flick = calm ? 1 : 0.82 + 0.18 * Math.sin(t * 11 + i * 3);
+              g.fillStyle = "#221210"; g.fillRect(x - 10, y - 30, 2, 16);
+              g.fillStyle = "#ff7828"; g.fillRect(x - 11, y - 33, 4, 3);
+              g.fillStyle = "#ffe08a"; g.fillRect(x - 10, y - 34, 2, 2);
+              g.globalCompositeOperation = "lighter";
+              glow(g, x - 9, y - 32, 24, [255, 120, 40], 0.32 * flick);
+              g.globalCompositeOperation = "source-over";
+            }
             if (!calm && march > 0.05 && march < 0.98 && Math.random() < 0.25) {
               embers.push({ x: x + 6, y: 236, vx: 8 + Math.random() * 12, vy: -4 - Math.random() * 8, l: 0, c: [110, 82, 62] });
             }
@@ -251,36 +303,44 @@
     function drowning() {
       const r = BC.makeRng(23);
       const far = layerCanvas(g => {
-        sky(g, [[0, [8, 10, 20]], [0.5, [24, 30, 48]], [1, [52, 56, 76]]]);
-        clouds(g, r, 9, 10, 110, "rgba(20,24,40,.9)"); clouds(g, r, 5, 40, 120, "rgba(52,56,82,.5)");
-        ridge(g, r, 150, 40, "#0e121c", "#1c2234"); treeline(g, r, 150, 36, "#080a12", 8);
+        sky(g, [[0, [8, 10, 22]], [0.5, [24, 32, 52]], [1, [54, 62, 86]]]);
+        // Pale break in the storm clouds above the river
+        blob(g, 120, 52, 46, 16, "rgba(110,130,175,.22)");
+        blob(g, 120, 50, 24, 9, "rgba(175,195,235,.25)");
+        clouds(g, r, 9, 10, 110, "rgba(20,24,40,.88)"); clouds(g, r, 5, 40, 120, "rgba(52,58,86,.5)");
+        ridge(g, r, 150, 40, "#0e121c", "#1e263a"); treeline(g, r, 150, 36, "#080a12", 8);
       });
-      const water = layerCanvas(g => riverBase(g, waterTop, [6, 8, 16], [26, 32, 50]));
+      const water = layerCanvas(g => riverBase(g, waterTop, [6, 9, 18], [30, 38, 60]));
       const bank = layerCanvas(g => {
         g.fillStyle = "#0a0a10"; g.beginPath(); g.moveTo(250, H + PADY); g.lineTo(272, 190); g.lineTo(300, 176); g.lineTo(W + PAD, 172); g.lineTo(W + PAD, H + PADY); g.fill();
-        for (let x = 270; x < W + PAD; x += 6) { g.fillStyle = "#12121c"; g.fillRect(x, 174 + ((x * 3) % 4), 2, 3); }
+        for (let x = 270; x < W + PAD; x += 6) { g.fillStyle = "#141624"; g.fillRect(x, 174 + ((x * 3) % 4), 2, 3); }
       });
       const ring = [];
       return {
-        cam: [[34, 0, 1.0], [-26, 0, 1.06]], tint: [40, 50, 100, 0.12], rain: 1, fadeIn: 0.45, fadeOut: 0,
+        cam: [[30, 0, 1.0], [-24, 0, 1.06]], tint: [40, 50, 100, 0.11], rain: 1, fadeIn: 0.45, fadeOut: 0,
         layers: [[0.1, far], [0.5, water], [0.9, bank]],
         dynamic(g, st) {
           const { t, local, calm, P } = st;
           let [ox, oy] = P(0.5); g.save(); g.translate(ox, oy);
-          // current, drawn as stretched highlights
+          // current, drawn as stretched highlights + pale stormlight sheen behind the sinking figure
           for (let y = waterTop + 4; y < H; y += 4) {
-            g.fillStyle = `rgba(120,140,190,${0.05 + (y - waterTop) / 900})`;
+            g.fillStyle = `rgba(130,152,205,${0.06 + (y - waterTop) / 850})`;
             for (let x = ((calm ? 0 : t * 14) + y * 9) % 30 - 30; x < W + PAD; x += 30) g.fillRect(x, y, 8 + (y % 5), 1);
           }
+          mistBands(g, waterTop - 2, 3, 0.1, t, calm, [150, 172, 215]);
           g.restore();
           [ox, oy] = P(0.9); g.save(); g.translate(ox, oy);
+          // Cold silver sheen on the water so the sinking silhouette reads starkly
+          g.globalCompositeOperation = "lighter";
+          glow(g, 120, waterTop + 34, 54, [130, 160, 220], 0.24);
+          g.globalCompositeOperation = "source-over";
           // torchlight on the water
           const torches = [[300, 150], [340, 146], [380, 150], [420, 146]];
           for (const [x, y] of torches) {
             const f = calm ? 1 : 0.8 + 0.2 * Math.sin(t * 11 + x) * Math.sin(t * 5.3 + x * 0.3);
             g.globalCompositeOperation = "lighter";
-            glow(g, x, y, 46, [255, 130, 40], 0.34 * f);
-            g.fillStyle = `rgba(255,150,60,${0.2 * f})`;
+            glow(g, x, y, 48, [255, 130, 40], 0.36 * f);
+            g.fillStyle = `rgba(255,150,60,${0.22 * f})`;
             for (let k = 0; k < 14; k++) g.fillRect(x - 3 + Math.sin(t * 3 + k + x) * 2, waterTop + 6 + k * 6, 5 - k * 0.25, 2);
             g.globalCompositeOperation = "source-over";
           }
@@ -288,20 +348,23 @@
           for (let i = 0; i < 4; i++) {
             const x = torches[i][0] - 2, y = 186 + (i % 2) * 4;
             spr(g, img("enemies:collector"), 0, x, y, 2, true, 32, [[4, 4, 10], 0.93]);
+            const sway = calm ? 0 : Math.round(Math.sin(t * 12 + i * 2));
             g.fillStyle = "#1a1010"; g.fillRect(x - 12, y - 30, 2, 22);
-            g.fillStyle = "#ffb050"; g.fillRect(x - 12, y - 33, 2, 3); g.fillStyle = "#ff6020"; g.fillRect(x - 13, y - 32, 4, 2);
+            g.fillStyle = "#ff5a18"; g.fillRect(x - 14 + sway, y - 34, 6, 4);
+            g.fillStyle = "#ffb84a"; g.fillRect(x - 13 + sway, y - 36, 4, 4);
+            g.fillStyle = "#fff0b0"; g.fillRect(x - 12 + sway, y - 35, 2, 2);
           }
           // someone in the water, sinking, with rings spreading from the spot
-          const fx = 120, sink = ease(clamp(local * 1.1));
-          if (!calm && Math.random() < 0.06) ring.push({ x: fx + Math.random() * 6 - 3, y: waterTop + 40, l: 0 });
+          const fx = 120, sink = ease(clamp(local * 1.05));
+          if (!calm && Math.random() < 0.08) ring.push({ x: fx + Math.random() * 6 - 3, y: waterTop + 40, l: 0 });
           for (let i = ring.length - 1; i >= 0; i--) {
             const k = ring[i]; k.l += st.dt;
             if (k.l > 2.2) { ring.splice(i, 1); continue; }
-            g.strokeStyle = `rgba(150,170,210,${0.5 * (1 - k.l / 2.2)})`;
-            g.beginPath(); g.ellipse(k.x, k.y, 4 + k.l * 16, 1.5 + k.l * 4, 0, 0, 6.3); g.stroke();
+            g.strokeStyle = `rgba(175,198,238,${0.58 * (1 - k.l / 2.2)})`;
+            g.beginPath(); g.ellipse(k.x, k.y, 5 + k.l * 17, 1.8 + k.l * 4.2, 0, 0, 6.3); g.stroke();
           }
           g.save(); g.beginPath(); g.rect(0, 0, W, waterTop + 40 + 4); g.clip();     // the water takes them from the feet up
-          spr(g, intro.villagers, 3, fx, waterTop + 38 + sink * 40, 1.7, false, 32, [[0, 0, 6], 0.9]);
+          spr(g, intro.villagers, 3, fx, waterTop + 36 + sink * 38, 1.75, false, 32, [[2, 4, 12], 0.92]);
           g.restore();
           g.restore();
         },
@@ -312,11 +375,11 @@
     function silence() {
       const r = BC.makeRng(37);
       const far = layerCanvas(g => {
-        sky(g, [[0, [6, 8, 18]], [0.55, [18, 24, 42]], [1, [40, 46, 66]]]);
+        sky(g, [[0, [6, 8, 18]], [0.55, [18, 24, 44]], [1, [42, 48, 70]]]);
         clouds(g, r, 12, 6, 120, "rgba(14,18,32,.9)");
-        ridge(g, r, 156, 36, "#0a0e18", "#161c2c"); treeline(g, r, 156, 40, "#06080e", 8);
+        ridge(g, r, 156, 36, "#0a0e18", "#182032"); treeline(g, r, 156, 40, "#06080e", 8);
       });
-      const water = layerCanvas(g => riverBase(g, waterTop, [4, 6, 12], [22, 28, 44]));
+      const water = layerCanvas(g => riverBase(g, waterTop, [4, 6, 14], [24, 30, 48]));
       const bank = layerCanvas(g => {
         g.fillStyle = "#0e101a"; g.beginPath(); g.moveTo(-PAD, 212); g.lineTo(90, 206); g.lineTo(170, 226); g.lineTo(215, H + PADY); g.lineTo(-PAD, H + PADY); g.fill();
         g.fillStyle = "#1c2030"; g.beginPath(); g.moveTo(-PAD, 212); g.lineTo(90, 206); g.lineTo(170, 226); g.lineTo(172, 228); g.lineTo(90, 209); g.lineTo(-PAD, 215); g.fill();
@@ -324,7 +387,7 @@
       });
       const rings = [];
       return {
-        cam: [[0, 4, 1.12], [6, 0, 1.0]], tint: [30, 40, 90, 0.14], rain: 0.8, fadeIn: 0, fadeOut: 0.5, bolt: true, shake: 3.5,
+        cam: [[0, 4, 1.1], [6, 0, 1.0]], tint: [30, 40, 90, 0.13], rain: 0.75, fadeIn: 0, fadeOut: 0.5, bolt: true, shake: 3.5,
         layers: [[0.1, far], [0.5, water], [1.1, bank]],
         dynamic(g, st) {
           const { t, local, calm, P, since } = st;
@@ -336,35 +399,40 @@
           g.restore();
           [ox, oy] = P(0.5); g.save(); g.translate(ox, oy);
           for (let y = waterTop + 4; y < H; y += 4) {
-            g.fillStyle = `rgba(110,130,180,${0.04 + (y - waterTop) / 1000})`;
+            g.fillStyle = `rgba(115,138,190,${0.045 + (y - waterTop) / 950})`;
             for (let x = ((calm ? 0 : t * 10) + y * 7) % 34 - 34; x < W + PAD; x += 34) g.fillRect(x, y, 10, 1);
           }
+          mistBands(g, waterTop, 4, 0.09, t, calm, [135, 158, 205]);
           if (!calm && Math.random() < 0.18) rings.push({ x: 40 + Math.random() * 400, y: waterTop + 12 + Math.random() * 80, l: 0 });
           for (let i = rings.length - 1; i >= 0; i--) {
             const k = rings[i]; k.l += st.dt;
             if (k.l > 1.4) { rings.splice(i, 1); continue; }
-            g.strokeStyle = `rgba(150,170,210,${0.3 * (1 - k.l / 1.4)})`; g.beginPath(); g.ellipse(k.x, k.y, 2 + k.l * 9, 1 + k.l * 2, 0, 0, 6.3); g.stroke();
+            g.strokeStyle = `rgba(155,178,220,${0.32 * (1 - k.l / 1.4)})`; g.beginPath(); g.ellipse(k.x, k.y, 2 + k.l * 9, 1 + k.l * 2, 0, 0, 6.3); g.stroke();
           }
           // a lantern, set on the river and left to go
-          const lx = lerp(150, 400, ease(local)), ly = waterTop + 54 + Math.sin(local * 5) * 2;
+          const lx = lerp(164, 396, ease(local)), ly = waterTop + 54 + Math.sin(local * 5) * 2;
           g.globalCompositeOperation = "lighter";
-          glow(g, lx, ly - 8, 36, [255, 150, 60], 0.55);
-          g.fillStyle = "rgba(255,160,60,.24)"; for (let k = 0; k < 8; k++) g.fillRect(lx - 2 + Math.sin(t * 2 + k) * 1.5, ly + k * 3, 4 - k * 0.4, 2);
+          glow(g, lx, ly - 8, 42, [255, 155, 65], 0.62);
+          g.fillStyle = "rgba(255,165,65,.28)"; for (let k = 0; k < 9; k++) g.fillRect(lx - 2 + Math.sin(t * 2 + k) * 1.5, ly + k * 3, 4 - k * 0.35, 2);
           g.globalCompositeOperation = "source-over";
           g.fillStyle = "#3a1c10"; g.fillRect(Math.round(lx) - 4, Math.round(ly) - 1, 8, 3);     // the paper lantern's frame
           g.fillStyle = "#ffb55a"; g.fillRect(Math.round(lx) - 3, Math.round(ly) - 6, 6, 5);
           g.fillStyle = "#fff0b8"; g.fillRect(Math.round(lx) - 1, Math.round(ly) - 5, 2, 3);
           g.restore();
-          // the survivor, seen from behind, at the water's edge + oath embers rising
+          // the survivor, seen from behind, at the water's edge + oath embers rising into the night
           [ox, oy] = P(1.1); g.save(); g.translate(ox, oy);
+          g.globalCompositeOperation = "lighter";
+          glow(g, 112, 210, 44, [90, 115, 175], 0.16);
+          g.globalCompositeOperation = "source-over";
           spr(g, intro.mourners, 0, 112, 246, 3, false, 32, [[10, 14, 36], 0.55]);
-          if (!calm && local > 0.35 && Math.random() < 0.35) {
-            embers.push({ x: 80 + Math.random() * 80, y: 260, vx: (Math.random() - 0.5) * 10, vy: -18 - Math.random() * 20, l: 0, c: [255, 90, 40] });
+          if (!calm && local > 0.25 && Math.random() < 0.3) {
+            embers.push({ x: 86 + Math.random() * 64, y: 232 - Math.random() * 24, vx: 3 + (Math.random() - 0.35) * 12, vy: -22 - Math.random() * 22, l: 0, c: [255, 95, 42] });
           }
           for (let i = embers.length - 1; i >= 0; i--) {
             const e = embers[i]; e.l += st.dt; e.x += e.vx * st.dt; e.y += e.vy * st.dt;
             if (e.l > 2.2) { embers.splice(i, 1); continue; }
-            g.fillStyle = rgb(mix(e.c, [255, 220, 140], 0.4), 0.8 * (1 - e.l / 2.2));
+            const alpha = Math.sin(clamp(e.l / 2.2) * Math.PI) * 0.85;
+            g.fillStyle = rgb(mix(e.c, [255, 220, 140], 0.45), alpha);
             g.fillRect(Math.round(e.x), Math.round(e.y), 2, 2);
           }
           g.restore();
@@ -393,14 +461,14 @@
         for (let x = -PAD; x < W + PAD; x += 4) { g.fillStyle = "#1c1018"; g.fillRect(x, 222 + ((x * 3) % 3), 2, 4); }
       });
       return {
-        cam: [[-22, 8, 1.0], [14, -4, 1.06]], tint: [255, 120, 60, 0.06], rain: 0.12, fadeIn: 0.6,
+        cam: [[-20, 6, 1.0], [12, -3, 1.06]], tint: [255, 120, 60, 0.06], rain: 0.08, fadeIn: 0.55,
         layers: [[0.08, far], [0.25, mid], [0.55, near]],
         dynamic(g, st) {
           const { t, local, calm, P, since } = st;
           // the sun comes up behind the ridge
           let [ox, oy] = P(0.08); g.save(); g.translate(ox, oy);
           g.globalCompositeOperation = "lighter";
-          glow(g, 330, 150 - local * 14, 130, [255, 150, 70], 0.38 + local * 0.2);
+          glow(g, 330, 150 - local * 14, 136, [255, 155, 75], 0.4 + local * 0.2);
           g.globalCompositeOperation = "source-over"; g.restore();
           [ox, oy] = P(0.9); g.save(); g.translate(ox, oy);
           // the common folk + armed rebel warriors on the slope behind the tribes
@@ -409,38 +477,53 @@
             const useRebel = intro.warriors && i % 3 === 0;
             const src = useRebel ? intro.warriors : intro.villagers;
             const frame = useRebel ? (i % 4) : (i % 6);
-            spr(g, src, frame, 30 + i * 32 + (i % 3) * 7, 216 + (i % 2) * 6, 1.25, false, 32, [[24, 8, 30], 0.5 - ready * 0.1]);
+            spr(g, src, frame, 30 + i * 32 + (i % 3) * 7, 214 + (i % 2) * 5, 1.25, false, 32, [[24, 8, 30], 0.5 - ready * 0.1]);
           }
-          spr(g, img("props:campfire"), calm ? 0 : Math.floor(t * 7) % 4, 238, 224, 1.0);
-          // each tribe marches in: a banner-bearing cube column with its aura underfoot
+          // Braziers placed cleanly in the lanes between the three tribe columns (never covering warrior faces)
+          const braziers = [[166, [255, 95, 24]], [314, [255, 165, 45]]];
+          braziers.forEach(([bx, col], bi) => {
+            spr(g, img("props:brazier"), calm ? 0 : Math.floor(t * 8 + bi) % 4, bx, 232, 0.95);
+            brazierFire(g, bx, 232, t + bi * 1.7, calm, col, 0.95);
+          });
+          // Tall tribe war-banners rising behind the centre of each 3-warrior column
+          TRIBES.forEach((tribe, ti) => {
+            const cx = 92 + ti * 148, bUp = ease(clamp(since * 0.5 - ti * 0.22));
+            if (bUp > 0.02) {
+              const topY = Math.round(lerp(208, 164, bUp)), wave = calm ? 0 : Math.round(Math.sin(t * 6 + ti * 1.8) * 2);
+              g.fillStyle = "#3a241c"; g.fillRect(cx - 1, topY, 2, 230 - topY);
+              g.fillStyle = "#d9b977"; g.fillRect(cx - 9, topY, 18, 2); g.fillRect(cx - 1, topY - 3, 2, 3);
+              g.fillStyle = rgb(mix(tribe.color, [20, 6, 10], 0.35), 0.95 * bUp);
+              g.fillRect(cx - 7, topY + 2, 14, 16);
+              g.fillRect(cx - 7, topY + 18 + (wave > 0 ? 1 : 0), 5, 5);
+              g.fillRect(cx + 2, topY + 18 + (wave < 0 ? 1 : 0), 5, 5);
+              g.fillStyle = rgb(mix(tribe.color, [255, 245, 210], 0.55), 0.95 * bUp);
+              g.fillRect(cx - 2, topY + 6, 4, 8); g.fillRect(cx - 4, topY + 9, 8, 2);
+              g.globalCompositeOperation = "lighter";
+              glow(g, cx, topY + 10, 30, tribe.color, 0.34 * bUp);
+              g.globalCompositeOperation = "source-over";
+            }
+          });
+          // each tribe marches in: three totem warriors abreast with their aura underfoot
           TRIBES.forEach((tribe, ti) => {
             tribe.units.forEach((name, ui) => {
-              const k = ti * 3 + ui, arrive = ease(clamp(since * 0.42 - k * 0.07));
+              const k = ti * 3 + ui, arrive = ease(clamp(since * 0.44 - k * 0.065));
               if (arrive <= 0) return;
-              const homeX = 92 + ti * 148 + (ui - 1) * 52, x = lerp(homeX - 120, homeX, arrive), y = 244 + (ui % 2) * 5;
-              const sc = 1.8, frame = calm ? 0 : Math.floor(t * 5 + k) % 4;
+              const homeX = 92 + ti * 148 + (ui - 1) * 48, x = lerp(homeX - 110, homeX, arrive), y = 246 + (ui % 2) * 4;
+              const sc = 1.75, frame = calm ? 0 : Math.floor(t * 5 + k) % 4;
               g.globalCompositeOperation = "lighter";
-              glow(g, x, y - 4, 34, tribe.color, 0.32 * arrive);
+              glow(g, x, y - 6, 34, tribe.color, 0.32 * arrive);
               g.globalCompositeOperation = "source-over";
-              g.fillStyle = "rgba(0,0,0,.4)"; g.fillRect(x - 20, y - 1, 40, 3);
+              g.fillStyle = "rgba(0,0,0,.45)"; g.fillRect(x - 19, y - 1, 38, 3);
               g.globalAlpha = arrive; spr(g, img(unitKey(name)), frame, x, y, sc); g.globalAlpha = 1;
             });
-            // a brazier + banner planted at the head of each column
-            const tx = 34 + ti * 148, flame = calm ? 1 : 0.8 + 0.2 * Math.sin(t * 9 + ti * 2);
-            const bUp = ease(clamp(since * 0.5 - ti * 0.3));
-            spr(g, img("props:brazier"), calm ? 0 : Math.floor(t * 8 + ti) % 4, tx, 236, 1.05);
-            g.fillStyle = "#2a1810"; g.fillRect(tx - 10, 198, 2, 36);
-            g.fillStyle = rgb(tribe.color, 0.9 * bUp);
-            const wave = calm ? 0 : Math.round(Math.sin(t * 6 + ti) * 2);
-            g.fillRect(tx - 8, 199, 12, 6); g.fillRect(tx + 4, 200 + wave, 5, 4);
-            g.globalCompositeOperation = "lighter"; glow(g, tx, 206, 36, tribe.color, 0.48 * flame * bUp); g.globalCompositeOperation = "source-over";
-            if (!calm && Math.random() < 0.25) embers.push({ x: tx, y: 204, vx: (Math.random() - 0.5) * 16, vy: -22 - Math.random() * 20, l: 0, c: tribe.color });
+            const cx = 92 + ti * 148;
+            if (!calm && Math.random() < 0.28) embers.push({ x: cx + (Math.random() - 0.5) * 90, y: 242, vx: (Math.random() - 0.5) * 14, vy: -22 - Math.random() * 20, l: 0, c: tribe.color });
           });
           g.restore();
           for (let i = embers.length - 1; i >= 0; i--) {
             const e = embers[i]; e.l += st.dt; e.x += e.vx * st.dt; e.y += e.vy * st.dt;
             if (e.l > 2) { embers.splice(i, 1); continue; }
-            g.fillStyle = rgb(mix(e.c, [255, 240, 190], 0.5), 1 - e.l / 2); g.fillRect(Math.round(e.x + ox), Math.round(e.y + oy), 1, 1);
+            g.fillStyle = rgb(mix(e.c, [255, 240, 190], 0.5), 1 - e.l / 2); g.fillRect(Math.round(e.x + ox), Math.round(e.y + oy), 2, 2);
           }
         },
       };
@@ -450,57 +533,90 @@
     function crown() {
       const r = BC.makeRng(53);
       const far = layerCanvas(g => {
-        sky(g, [[0, [16, 4, 10]], [0.5, [92, 14, 24]], [0.85, [190, 52, 32]], [1, [236, 110, 50]]]);
-        clouds(g, r, 9, 20, 120, "rgba(40,6,14,.6)");
+        sky(g, [[0, [14, 3, 9]], [0.48, [96, 14, 24]], [0.84, [194, 50, 30]], [1, [238, 112, 48]]]);
+        // Blood-crimson eclipse halo behind the Collector King's citadel
+        blob(g, W / 2, 86, 56, 56, "rgba(220,48,28,.2)");
+        blob(g, W / 2, 86, 34, 34, "rgba(255,110,55,.22)");
+        clouds(g, r, 9, 20, 120, "rgba(38,6,14,.62)");
       });
       const keepLayer = layerCanvas(g => {
         ridge(g, r, 176, 56, "#1a060c", "#3a1018");
-        const ink = "#07020a";
+        const ink = "#08020a", trim = "#1e0812";
         g.fillStyle = ink;
-        // Curtain wall + ridge base
-        g.fillRect(68, 152, 344, 58);
-        for (let x = 68; x < 412; x += 8) g.fillRect(x, 147, 4, 5);
-        g.fillStyle = "#07020a"; g.fillRect(-PAD, 206, W + PAD * 2, H);
+        // Heavy curtain wall + siege bastions
+        g.fillRect(64, 156, 352, 56);
+        g.fillRect(128, 144, 52, 66);
+        g.fillRect(300, 144, 52, 66);
+        for (let x = 64; x < 416; x += 8) g.fillRect(x, 151, 4, 5);
+        for (let x = 128; x < 180; x += 8) g.fillRect(x, 139, 4, 5);
+        for (let x = 300; x < 352; x += 8) g.fillRect(x, 139, 4, 5);
+        // Central Royal Spire & Battlement Balcony where the Collector King stands
+        g.fillRect(W / 2 - 34, 88, 68, 122);
+        g.fillRect(W / 2 - 28, 76, 56, 16);
+        for (let x = W / 2 - 28; x <= W / 2 + 24; x += 8) g.fillRect(x, 71, 4, 5);
+        // Twin jagged crown-horns flanking the high balcony
+        for (const dir of [-1, 1]) {
+          const sx = W / 2 + dir * 26;
+          g.fillRect(sx - 4, 52, 8, 36);
+          g.fillRect(sx - 3, 42, 6, 12);
+          g.fillRect(sx - 1, 34, 2, 10);
+        }
+        g.fillStyle = trim;
+        g.fillRect(W / 2 - 28, 76, 56, 1);
+        g.fillRect(64, 156, 352, 1);
+        g.fillStyle = "#5a0e18";
+        g.fillRect(W / 2 - 20, 82, 5, 22); g.fillRect(W / 2 + 15, 82, 5, 22);
+        g.fillStyle = ink; g.fillRect(-PAD, 206, W + PAD * 2, H);
       });
       const near = layerCanvas(g => {
         ridge(g, r, 226, 18, "#0c0408", "#1e0a10");
         g.fillStyle = "#08030a"; g.fillRect(-PAD, 238, W + PAD * 2, H);
       });
       return {
-        cam: [[0, 2, 1.0], [0, -5, 1.1]], tint: [255, 30, 20, 0.08], rain: 0, fadeIn: 0.9, fadeOut: 0.35, iris: [240, 100],
+        cam: [[0, 2, 1.0], [0, -5, 1.09]], tint: [255, 30, 20, 0.08], rain: 0, fadeIn: 0.85, fadeOut: 0.35, iris: [240, 84],
         layers: [[0.06, far], [0.16, keepLayer], [0.5, near]],
         dynamic(g, st) {
           const { t, local, calm, P, since } = st;
           let [ox, oy] = P(0.16); g.save(); g.translate(ox, oy);
-          // the crown's glow, bespoke war citadel + towers + siege engines, and the king on the parapet
+          // the crown's crimson glow, symmetrical dark towers, siege engines on bastions, and bespoke 128px citadel
           g.globalCompositeOperation = "lighter";
-          glow(g, W / 2, 96, 170, [210, 40, 24], 0.32 + (calm ? 0 : 0.08 * Math.sin(t * 1.5)));
+          glow(g, W / 2, 86, 175, [215, 38, 22], 0.34 + (calm ? 0 : 0.08 * Math.sin(t * 1.5)));
           g.globalCompositeOperation = "source-over";
-          // Flanking towers & siege machines
-          spr(g, intro.towers, 0, 104, 208, 1.7, false, 64, [[16, 2, 10], 0.45]);
-          spr(g, intro.towers, 1, 376, 208, 1.7, true, 64, [[16, 2, 10], 0.45]);
+          // Symmetrical dark-iron flanking towers & siege machines anchored on stone bastions
+          spr(g, intro.towers, 1, 96, 210, 1.75, false, 64, [[10, 2, 8], 0.72]);
+          spr(g, intro.towers, 1, 384, 210, 1.75, true, 64, [[10, 2, 8], 0.72]);
           const siegeFrame = calm ? 0 : Math.floor(t * 4) % 4;
-          spr(g, intro.siege, siegeFrame, 148, 162, 0.85, false, 48, [[14, 2, 8], 0.55]);
-          spr(g, intro.siege, (siegeFrame + 2) % 4, 332, 162, 0.85, true, 48, [[14, 2, 8], 0.55]);
-          // Central bespoke Citadel
+          spr(g, intro.siege, siegeFrame, 154, 144, 0.85, false, 48, [[14, 2, 8], 0.68]);
+          spr(g, intro.siege, (siegeFrame + 2) % 4, 326, 144, 0.85, true, 48, [[14, 2, 8], 0.68]);
+          // Central bespoke Citadel (128x128 cell, deeply shadowed into iron-crimson stone)
           if (intro.citadel) {
-            spr(g, intro.citadel, 0, W / 2, 212, 1.65, false, 96, [[18, 2, 12], 0.35]);
+            spr(g, intro.citadel, 0, W / 2, 214, 1.18, false, 128, [[10, 2, 8], 0.74]);
           }
-          // Braziers on the gatehouse
+          // Re-assert dark parapet ledge at y=76 so the Collector King stands solidly on stone battlements
+          g.fillStyle = "#08020a"; g.fillRect(W / 2 - 26, 75, 52, 8);
+          for (let x = W / 2 - 26; x <= W / 2 + 22; x += 8) g.fillRect(x, 71, 4, 4);
+          g.fillStyle = "#2b0a14"; g.fillRect(W / 2 - 26, 75, 52, 1);
+          // Gatehouse braziers burning with crimson-orange fire
           const bf = calm ? 0 : Math.floor(t * 8) % 4;
-          spr(g, img("props:brazier"), bf, W / 2 - 46, 208, 0.9);
-          spr(g, img("props:brazier"), (bf + 2) % 4, W / 2 + 46, 208, 0.9);
-          // The Collector King on the high parapet
-          spr(g, img("enemies:king"), 0, W / 2, 66, 1.6, true, 32, [[4, 0, 6], 0.88]);
-          const eyes = ease(clamp((local - 0.3) * 2.5));
-          g.fillStyle = `rgba(255,60,40,${eyes})`; g.fillRect(W / 2 - 2, 38, 2, 1); g.fillRect(W / 2 + 1, 38, 2, 1);
+          for (const side of [-1, 1]) {
+            const bx = W / 2 + side * 46;
+            spr(g, img("props:brazier"), (bf + (side > 0 ? 2 : 0)) % 4, bx, 208, 0.9);
+            brazierFire(g, bx, 208, t + side, calm, [255, 70, 20], 0.9);
+          }
+          // The Collector King standing on the high parapet (feet in 32px cell sit at y=28 -> +6px offset lands on y=75)
+          spr(g, img("enemies:king"), 0, W / 2, 81, 1.6, true, 32, [[6, 0, 8], 0.9]);
+          const eyes = ease(clamp((local - 0.22) * 2.4));
+          g.globalCompositeOperation = "lighter";
+          glow(g, W / 2, 46, 14, [255, 40, 20], 0.45 * eyes);
+          g.globalCompositeOperation = "source-over";
+          g.fillStyle = `rgba(255,65,42,${eyes})`; g.fillRect(W / 2 - 3, 45, 2, 1); g.fillRect(W / 2 + 1, 45, 2, 1);
           g.restore();
-          // the tribes + rebel warriors stand together beneath it
+          // the tribes stand together beneath the fortress
           [ox, oy] = P(0.9); g.save(); g.translate(ox, oy);
           TRIBES.forEach((tribe, ti) => tribe.units.forEach((name, ui) => {
             const k = ti * 3 + ui, x = 56 + k * 46, y = 258 + (k % 2) * 4, up = ease(clamp(since * 0.8 + 0.5));
-            g.globalCompositeOperation = "lighter"; glow(g, x, y - 6, 24, tribe.color, 0.24 * up); g.globalCompositeOperation = "source-over";
-            spr(g, img(unitKey(name)), calm ? 0 : Math.floor(t * 5 + k) % 4, x, y, 1.5, false, 32, [[8, 2, 12], 0.35]);
+            g.globalCompositeOperation = "lighter"; glow(g, x, y - 6, 24, tribe.color, 0.26 * up); g.globalCompositeOperation = "source-over";
+            spr(g, img(unitKey(name)), calm ? 0 : Math.floor(t * 5 + k) % 4, x, y, 1.5, false, 32, [[8, 2, 12], 0.32]);
           }));
           g.restore();
         },
@@ -508,15 +624,24 @@
     }
 
     // ------------------------------------------------------------ shot 5 --
-    // Title card: embers rising from a black ridge with the three tribe totems.
+    // Title card: embers and banner silhouettes along a black ridge beneath the three named tribes.
     function tribesCard() {
       const r = BC.makeRng(67);
       const far = layerCanvas(g => {
-        sky(g, [[0, [6, 2, 8]], [0.6, [40, 8, 18]], [1, [110, 24, 24]]]);
-        stars(g, r, 50, 120); clouds(g, r, 6, 40, 150, "rgba(60,10,20,.5)");
-        ridge(g, r, 214, 50, "#12060c", "#2a1018");
+        sky(g, [[0, [6, 2, 8]], [0.58, [38, 8, 18]], [1, [112, 24, 22]]]);
+        stars(g, r, 56, 130); clouds(g, r, 6, 40, 150, "rgba(60,10,20,.48)");
+        ridge(g, r, 216, 48, "#12060c", "#2c1018");
       });
-      const near = layerCanvas(g => { ridge(g, r, 244, 22, "#07020a", "#160a10"); g.fillStyle = "#07020a"; g.fillRect(-PAD, 252, W + PAD * 2, H); });
+      const near = layerCanvas(g => {
+        ridge(g, r, 244, 20, "#07020a", "#180a10");
+        g.fillStyle = "#07020a"; g.fillRect(-PAD, 250, W + PAD * 2, H);
+        // Silhouetted forest of raised spears and rebellion pennants along the ridge
+        for (let x = 16; x < W - 16; x += 19) {
+          const h = 14 + ((x * 7) % 11), base = 246 + ((x * 3) % 5);
+          g.fillStyle = "#0d040c"; g.fillRect(x, base - h, 1, h + 8);
+          if (x % 57 < 19) { g.fillStyle = "#260c14"; g.fillRect(x + 1, base - h + 2, 5, 3); }
+        }
+      });
       return {
         cam: [[0, 0, 1.0], [0, -3, 1.04]], tint: [255, 40, 20, 0.05], rain: 0, fadeIn: 0.6, fadeOut: 0.5,
         layers: [[0.05, far], [0.3, near]],
@@ -525,16 +650,16 @@
           const [ox, oy] = P(0.3);
           const up = ease(clamp(since * 1.1));
           g.globalCompositeOperation = "lighter";
-          TRIBES.forEach((tribe, ti) => glow(g, 240 + (ti - 1) * 140, 130, 95, tribe.color, (0.18 + (calm ? 0 : 0.04 * Math.sin(t * 1.6 + ti * 2))) * up));
-          g.globalCompositeOperation = "source-over";
           TRIBES.forEach((tribe, ti) => {
-            const tx = 240 + (ti - 1) * 140, ty = 250;
-            const frame = calm ? 0 : Math.floor(t * 4 + ti) % 4;
-            g.globalAlpha = 0.65 * up;
-            spr(g, img("bases:" + tribe.id), frame, tx, ty, 1.6, false, 32, [[10, 4, 14], 0.35]);
-            g.globalAlpha = 1;
+            const tx = 240 + (ti - 1) * 142;
+            glow(g, tx, 126, 102, tribe.color, (0.2 + (calm ? 0 : 0.04 * Math.sin(t * 1.6 + ti * 2))) * up);
+            glow(g, tx, 228, 56, tribe.color, 0.16 * up);
           });
-          if (!calm && Math.random() < 0.55) { const tribe = TRIBES[Math.floor(Math.random() * 3)]; embers.push({ x: Math.random() * W - ox, y: H - oy + 4, vx: (Math.random() - 0.5) * 12, vy: -16 - Math.random() * 26, l: 0, c: tribe.color }); }
+          g.globalCompositeOperation = "source-over";
+          if (!calm && Math.random() < 0.6) {
+            const tribe = TRIBES[Math.floor(Math.random() * 3)];
+            embers.push({ x: Math.random() * W - ox, y: H - oy + 4, vx: (Math.random() - 0.5) * 14, vy: -18 - Math.random() * 28, l: 0, c: tribe.color });
+          }
           for (let i = embers.length - 1; i >= 0; i--) {
             const e = embers[i]; e.l += st.dt; e.x += e.vx * st.dt; e.y += e.vy * st.dt;
             if (e.l > 4) { embers.splice(i, 1); continue; }
@@ -568,12 +693,9 @@
         g.restore();
         // grade, vignette, lightning, and the dip to black between shots
         g.fillStyle = rgb(shot.tint.slice(0, 3), shot.tint[3]); g.fillRect(0, 0, W, H);
-        const vg = g.createRadialGradient(W / 2, H / 2, H * 0.35, W / 2, H / 2, W * 0.62);
-        vg.addColorStop(0, "rgba(0,0,0,0)"); vg.addColorStop(1, "rgba(0,0,0,.6)");
+        const vg = g.createRadialGradient(W / 2, H / 2, H * 0.36, W / 2, H / 2, W * 0.64);
+        vg.addColorStop(0, "rgba(0,0,0,0)"); vg.addColorStop(1, "rgba(0,0,0,.56)");
         g.fillStyle = vg; g.fillRect(0, 0, W, H);
-        // subtle cinematic letterbox bars
-        g.fillStyle = "#050307"; g.fillRect(0, 0, W, 8); g.fillRect(0, H - 8, W, 8);
-        g.fillStyle = "rgba(180,120,70,.16)"; g.fillRect(0, 8, W, 1); g.fillRect(0, H - 9, W, 1);
         if (shot.bolt && !calm) {
           // Two flashes under 3 Hz, each decaying quickly: dramatic without strobing.
           const flash = Math.max(Math.exp(-since * 7), 0.55 * Math.exp(-Math.max(0, since - 0.4) * 9) * (since > 0.4 ? 1 : 0));

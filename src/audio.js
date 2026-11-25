@@ -45,7 +45,8 @@
   }
   const CROSSFADE = 1.4, MIX_FADE = 0.18;
   const tracks = new Map(), ramps = new WeakMap();
-  let ctx = null, buses = null, unlocked = false, away = false, resuming = false;
+  const isDesktopApp = typeof navigator !== "undefined" && /\bElectron\//i.test(navigator.userAgent || "");
+  let ctx = null, buses = null, unlocked = isDesktopApp, away = false, resuming = false;
   let scene = "loading", wanted = null, paused = false, speaking = false, musicCue = false;
   const settings = () => BC.save.settings;
   const hidden = () => away || document.hidden;
@@ -65,7 +66,7 @@
       // An immediately suspended context may never render a scheduled event.
       p.cancelScheduledValues(0);
       p.value = value;
-      ramps.set(node, { from: value, to: value, start: now, end: now });
+      ramps.set(node, { from: value, to: value, start: now, end: now, wallStart: performance.now() / 1000 });
       return;
     }
     const progress = prev ? Math.min(1, Math.max(0, (now - prev.start) / (prev.end - prev.start || 1))) : 1;
@@ -73,14 +74,16 @@
     p.cancelScheduledValues(now);
     p.setValueAtTime(from, now);
     p.linearRampToValueAtTime(value, now + seconds);
-    ramps.set(node, { from, to: value, start: now, end: now + seconds });
+    ramps.set(node, { from, to: value, start: now, end: now + seconds, wallStart: performance.now() / 1000 });
   }
 
   function level(node) {
     const ramp = ramps.get(node);
     if (!ramp) return node.gain.value;
     const span = ramp.end - ramp.start;
-    return span > 0 ? ramp.from + (ramp.to - ramp.from) * Math.min(1, Math.max(0, (ctx.currentTime - ramp.start) / span)) : ramp.to;
+    if (span <= 0) return ramp.to;
+    const elapsed = ctx.state === "running" ? ctx.currentTime - ramp.start : performance.now() / 1000 - ramp.wallStart;
+    return ramp.from + (ramp.to - ramp.from) * Math.min(1, Math.max(0, elapsed / span));
   }
   function directMix() {
     for (const track of tracks.values()) track.element.volume = Math.min(1, level(buses.master) * level(buses.music) * level(track.gain));
@@ -105,8 +108,25 @@
           buses[name] = ctx.createGain();
           buses[name].gain.value = 0;
         }
-        buses.master.connect(ctx.destination);
-        for (const name of ["music", "effects", "ambient"]) buses[name].connect(buses.master);
+        // Peak limiter on effects and master prevents stacked 2x combat voices from clipping.
+        const makeLimiter = (threshold, ratio) => {
+          if (typeof ctx.createDynamicsCompressor !== "function") return null;
+          const comp = ctx.createDynamicsCompressor();
+          comp.threshold.value = threshold;
+          comp.knee.value = 8;
+          comp.ratio.value = ratio;
+          comp.attack.value = 0.003;
+          comp.release.value = 0.12;
+          return comp;
+        };
+        const masterLimiter = makeLimiter(-2, 16);
+        const fxLimiter = makeLimiter(-6, 12);
+        if (masterLimiter) buses.master.connect(masterLimiter).connect(ctx.destination);
+        else buses.master.connect(ctx.destination);
+        buses.music.connect(buses.master);
+        buses.ambient.connect(buses.master);
+        if (fxLimiter) buses.effects.connect(fxLimiter).connect(buses.master);
+        else buses.effects.connect(buses.master);
         // Reconcile after an OS interruption or a browser-initiated suspension.
         ctx.addEventListener("statechange", () => { if (ctx.state === "running") sync(); });
         mix();

@@ -4,12 +4,15 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#120606">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' file:; script-src 'self' file:; style-src 'self' 'unsafe-inline' file:; img-src 'self' file: data: blob:; media-src 'self' file: data: blob:; font-src 'self' file: data:; connect-src 'self' file:; worker-src 'self' file:">
 <meta name="description" content="Rally your tribe, awaken ancient runes, and bring down the Collector King's ten keeps. An offline dark fantasy lane battler.">
 <title>Beast and Crimson: Tribes</title>
+<link rel="icon" type="image/png" href="assets/art/crest.png">
+<link rel="manifest" href="manifest.webmanifest">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+<svg class="svg-defs" width="0" height="0" aria-hidden="true">
   <symbol id="vine-gear" viewBox="0 0 32 32">
     <g fill="currentColor">
       <path d="M16 1c2.4 2.2 2.4 4.4 0 6.4-2.4-2-2.4-4.2 0-6.4z"/>
@@ -28,9 +31,9 @@
     </g>
   </symbol>
 </svg>
-<div id="app">
+<main id="app">
   <!-- Loading -->
-  <section id="loading" class="screen active">
+  <section id="loading" class="screen active" aria-label="Loading game">
     <svg class="totem-bg" viewBox="0 0 400 200" preserveAspectRatio="xMidYMax slice" aria-hidden="true">
       <g fill="#000">
         <path d="M200 10c-30 0-58 18-64 46l-34-30 14 50c-8 16-8 34 0 50l-20 74h208l-20-74c8-16 8-34 0-50l14-50-34 30c-6-28-34-46-64-46zm-34 70h22l-11 14zm46 0h22l-11 14z" opacity=".5"/>
@@ -51,11 +54,11 @@
   </section>
 
   <!-- Cut scene -->
-  <section id="intro" class="screen">
+  <section id="intro" class="screen" aria-label="Story introduction">
     <div class="cine-bar top"></div>
     <div class="title-card" aria-hidden="true"><div class="tc-tribes"></div></div>
-    <div class="intro-stage"><canvas id="intro-canvas" width="480" height="270"></canvas></div>
-    <div class="cine-bar bottom"><p class="subtitle"></p></div>
+    <div class="intro-stage"><canvas id="intro-canvas" width="480" height="270" aria-hidden="true"></canvas></div>
+    <div class="cine-bar bottom"><p class="subtitle"></p><div class="intro-pips" aria-hidden="true"></div></div>
     <button class="skip rune-btn" title="Hold to skip the story" aria-label="Skip story (hold, or press and hold Escape)">
       <svg class="skip-ring" viewBox="0 0 44 44" aria-hidden="true"><circle cx="22" cy="22" r="20"/></svg>
       <span class="skip-label">Skip</span>
@@ -64,12 +67,12 @@
   </section>
 
   <!-- Main menu -->
-  <section id="menu" class="screen">
+  <section id="menu" class="screen" aria-label="Main menu">
     <div class="backdrop"><div class="art offense"></div><div class="art defense"></div><div class="art greed"></div></div>
-    <canvas class="menu-bg" width="480" height="270"></canvas>
+    <canvas class="menu-bg" width="480" height="270" aria-hidden="true"></canvas>
     <div class="vignette"></div>
     <div class="menu-wrap">
-      <img class="crest" src="assets/art/crest.png" alt="" onerror="this.remove()">
+      <img class="crest" src="assets/art/crest.png" alt="">
       <h1 class="title">Beast <span>&amp;</span> Crimson</h1>
       <p class="subtitle-line">Tribes</p>
       <p class="menu-kicker">Three tribes. One rebellion.</p>
@@ -115,14 +118,14 @@
   </section>
 
   <!-- Battle -->
-  <section id="battle" class="screen">
-    <canvas id="battle-canvas" width="480" height="270" aria-label="Battlefield. Use the deployment and ability buttons to command your warriors."></canvas>
+  <section id="battle" class="screen" aria-label="Battle">
+    <canvas id="battle-canvas" width="480" height="270" role="img" aria-label="Battlefield. Use the deployment and ability buttons to command your warriors."></canvas>
     <div class="hud">
       <div class="hud-left">
-        <div class="hp-bar" data-tip="Your Totem's health — if it falls, the battle is lost"><div class="hp-end l"></div><div class="hp-liquid"></div><div class="hp-end r"></div><span class="hp-text"></span></div>
+        <div class="hp-bar" role="group" data-tip="Your Totem's health — if it falls, the battle is lost"><div class="hp-end l"></div><div class="hp-liquid"></div><div class="hp-end r"></div><span class="hp-text"></span></div>
         <div class="deployed" data-tip="Active warriors on the lane"></div>
       </div>
-      <div class="hud-mid"><div class="keep-bar" data-tip="Enemy Keep — raze it to win the stage"><div class="keep-fill"></div><span class="keep-name"></span></div></div>
+      <div class="hud-mid"><div class="keep-bar" role="group" data-tip="Enemy Keep — raze it to win the stage"><div class="keep-fill"></div><span class="keep-name"></span></div></div>
       <div class="hud-right">
         <button class="stone-btn speed-btn" data-tip="Toggle battle speed (1x / 2x) · Press X" aria-label="Battle speed: 1x. Press X to change.">1x</button>
         <div class="gold-slab" data-tip="Gold — earned over time and from slain foes. Spend it to deploy warriors."><span class="coin"></span><span class="gold-val">0</span><span class="chest"></span></div>
@@ -142,7 +145,7 @@
     </div>
     <div class="pause hidden" role="dialog" aria-modal="true" aria-label="Battle paused" tabindex="-1">
       <div class="tablet">
-        <h3>Paused</h3>
+        <h2>Paused</h2>
         <p class="pause-summary"></p>
         <button class="molten resume">Resume</button>
         <button class="molten retreat">Retreat</button>
@@ -174,7 +177,7 @@
   <!-- Settings -->
   <div id="settings" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="settings-title" tabindex="-1">
     <div class="tablet">
-      <div class="dialog-heading"><h3 id="settings-title">Settings</h3><button class="close-icon" aria-label="Close settings">×</button></div>
+      <div class="dialog-heading"><h2 id="settings-title">Settings</h2><button class="close-icon" aria-label="Close settings">×</button></div>
       <fieldset class="audio-controls" data-audio-settings="settings"></fieldset>
       <label class="toggle"><input type="checkbox" class="opt-autocast"> Auto-cast abilities</label>
       <label class="toggle"><input type="checkbox" class="opt-narration"> Tribe narration</label>
@@ -196,13 +199,13 @@
   </div>
   <div id="confirm" class="modal hidden" role="alertdialog" aria-modal="true" aria-labelledby="confirm-message" tabindex="-1"><div class="confirm-box"><p id="confirm-message"></p><button class="yes">Confirm</button><button class="no">Cancel</button></div></div>
   <div id="tooltip" class="hidden" role="tooltip"></div>
-  <div id="curtain"></div>
-  <div id="rotate-hint">A wider battlefield awaits in landscape.</div>
-</div>
+  <div id="curtain" aria-hidden="true"></div>
+  <div id="rotate-hint" aria-hidden="true">A wider battlefield awaits in landscape.</div>
+</main>
 
 <div id="fatal" class="hidden" role="alertdialog" aria-modal="true" aria-labelledby="fatal-title" aria-describedby="fatal-text" tabindex="-1">
   <div class="tablet">
-    <h3 id="fatal-title">The ritual faltered</h3>
+    <h2 id="fatal-title">The ritual faltered</h2>
     <p id="fatal-text">Something went wrong and the game has stopped. Your saved progress has not been touched, and reloading usually fixes this.</p>
     <button class="molten fatal-reload">Reload the game</button>
     <button class="molten fatal-save">Download a copy of my save</button>

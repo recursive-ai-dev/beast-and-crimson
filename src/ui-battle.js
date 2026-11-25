@@ -137,10 +137,13 @@
     };
     $(".hud-right .gear", hud).onclick = () => setPaused(true);
     $(".resume", pause).onclick = () => setPaused(false);
+    let retreating = false, battleEnded = false;
     $(".retreat", pause).onclick = async () => {
-      if (!battle || battle.over) return;
-      if (!(await confirmBox(lastEndless ? "End this Endless run and claim wave rewards?" : "Retreat? The spoils of this battle will be lost."))) return;
-      if (!battle || battle.over) return;
+      if (!battle || battle.over || retreating || isTransitioning()) return;
+      retreating = true;
+      const confirmed = await confirmBox(lastEndless ? "End this Endless run and claim wave rewards?" : "Retreat? The spoils of this battle will be lost.");
+      retreating = false;
+      if (!confirmed || !battle || battle.over || isTransitioning()) return;
       const s = battle.stats; s.time = battle.t;
       battle.over = true;
       endBattle({ win: false, retreat: true, stats: s });
@@ -150,6 +153,37 @@
     const onBlur = () => setPaused(true);
     document.addEventListener("visibilitychange", onVisibility);
     addEventListener("blur", onBlur);
+
+    // Cached HUD element references and dirty-checked writers avoid redundant DOM/ARIA churn.
+    const goldValEl = $(".gold-val", hud), goldSlabEl = $(".gold-slab", hud);
+    const timeEl = $(".battle-time", hud), castModeEl = $(".cast-mode", hud);
+    const hpBarEl = $(".hp-bar", hud), hpLiquidEl = $(".hp-liquid", hud), hpTextEl = $(".hp-text", hud);
+    const keepBarEl = $(".keep-bar", hud), keepFillEl = $(".keep-fill", hud), keepNameEl = $(".keep-name", hud);
+    const spCoolEl = $(".cool", spBtn), spStateEl = $(".spell-state", spBtn);
+    const warningEl = $(".surge-warning", hud), depEl = $(".deployed", hud);
+    const slotDom = btns.map((btn, i) => ({
+      btn,
+      slotEl: btn.parentElement,
+      costEl: $(".cost", btn),
+      coolEl: $(".cool", btn),
+      deployCdEl: $(".deploy-cd", btn),
+      runes: [...btn.querySelectorAll(".spiral span")],
+      castBtn: castBtns[i],
+      castStateEl: $(".cast-state", castBtns[i]),
+    }));
+    const setText = (el, val) => { const s = String(val); if (el.textContent !== s) el.textContent = s; };
+    const setAttr = (el, attr, val) => { const s = String(val); if (el.getAttribute(attr) !== s) el.setAttribute(attr, s); };
+    const setClass = (el, cls, on) => { if (el.classList.contains(cls) !== !!on) el.classList.toggle(cls, !!on); };
+    const styleMemo = new WeakMap();
+    const setCss = (el, key, val) => {
+      let m = styleMemo.get(el);
+      if (!m) styleMemo.set(el, m = {});
+      if (m[key] === val) return;
+      m[key] = val;
+      if (key.startsWith("--")) el.style.setProperty(key, val);
+      else el.style[key] = val;
+    };
+    let lastGoldShown = -1, goldPopTimer = null;
     let hudTick = 0;
     battle = new BC.Battle($("#battle-canvas"), {
       tribe, stage: lastStage, endless: lastEndless, lineup: line,
@@ -168,80 +202,88 @@
       },
       onHud: (B, force) => {
         if (!force && (hudTick++ & 1) === 1) return;
-        $(".gold-val", hud).textContent = Math.floor(B.gold);
-        $(".battle-time", hud).textContent = fmtTime(B.t);
-        $(".hp-bar", hud).classList.toggle("critical", B.player.hp / B.player.max <= .25);
-        $(".hp-bar", hud).setAttribute("aria-label", `Totem health: ${Math.max(0, Math.ceil(B.player.hp))} of ${Math.round(B.player.max)}`);
-        $(".keep-bar", hud).setAttribute("aria-label", `Enemy keep: ${Math.max(0, Math.ceil(B.enemy.hp))} of ${Math.round(B.enemy.max)} health`);
+        const gFloor = Math.floor(B.gold);
+        if (lastGoldShown >= 0 && gFloor - lastGoldShown >= 8 && !BC.reducedMotion) {
+          goldSlabEl.classList.add("gold-pop");
+          clearTimeout(goldPopTimer);
+          goldPopTimer = setTimeout(() => goldSlabEl.classList.remove("gold-pop"), 260);
+        }
+        lastGoldShown = gFloor;
+        setText(goldValEl, gFloor);
+        setText(timeEl, fmtTime(B.t));
+        const curHp = Math.max(0, Math.ceil(B.player.hp)), maxHp = Math.round(B.player.max);
+        const curKeep = Math.max(0, Math.ceil(B.enemy.hp)), maxKeep = Math.round(B.enemy.max);
+        setClass(hpBarEl, "critical", B.player.hp / B.player.max <= .25);
+        setAttr(hpBarEl, "aria-label", `Totem health: ${curHp} of ${maxHp}`);
+        setAttr(keepBarEl, "aria-label", `Enemy keep: ${curKeep} of ${maxKeep} health`);
         spdBtn.disabled = B.paused || B.over;
-        $(".hp-liquid", hud).style.setProperty("--hp", Math.max(0, B.player.hp / B.player.max * 100) + "%");
-        $(".hp-text", hud).textContent = Math.max(0, Math.ceil(B.player.hp)) + " / " + Math.round(B.player.max);
-        updateTip($(".hp-bar", hud), `Totem health: ${Math.max(0, Math.ceil(B.player.hp))} / ${Math.round(B.player.max)}\nIf your Totem falls, the battle is lost.`);
-        $(".keep-fill", hud).style.width = Math.max(0, B.enemy.hp / B.enemy.max * 100) + "%";
-        updateTip($(".keep-bar", hud), `${B.stage.name} · ${Math.max(0, Math.ceil(B.enemy.hp))} / ${Math.round(B.enemy.max)} HP\nRaze the keep to win.`);
-        updateTip($(".cast-mode", hud), B.autocast
+        setCss(hpLiquidEl, "--hp", Math.max(0, B.player.hp / B.player.max * 100).toFixed(1) + "%");
+        setText(hpTextEl, `${curHp} / ${maxHp}`);
+        updateTip(hpBarEl, `Totem health: ${curHp} / ${maxHp}\nIf your Totem falls, the battle is lost.`);
+        setCss(keepFillEl, "width", Math.max(0, B.enemy.hp / B.enemy.max * 100).toFixed(1) + "%");
+        updateTip(keepBarEl, `${B.stage.name} · ${curKeep} / ${maxKeep} HP\nRaze the keep to win.`);
+        updateTip(castModeEl, B.autocast
           ? "Auto-cast — warriors and your Totem cast automatically when ready (toggle in Pause or Settings)"
           : "Manual casting — press Q/W/E/A/S or tap Cast when an ability is ready (toggle Auto-cast in Pause or Settings)");
-        if (B.endless) $(".keep-name", hud).textContent = B.stage.name;
+        if (B.endless) setText(keepNameEl, B.stage.name);
         const spK = B.player.spellCd / T.spell.cd;
         const spellReason = T.spell.unavailable?.(B);
+        const spellReady = B.player.spellCd <= 0 && !spellReason;
         const spellState = B.player.spellCd > 0 ? `Ready in ${Math.ceil(B.player.spellCd)}s` : spellReason || "Ready";
-        $(".cool", spBtn).style.setProperty("--cd", (spK * 100) + "%");
-        spBtn.classList.toggle("cooling", B.player.spellCd > 0);
-        $(".spell-state", spBtn).textContent = B.player.spellCd > 0 ? Math.ceil(B.player.spellCd) + "s" : spellReason ? "Blocked" : "Ready";
+        setCss(spCoolEl, "--cd", (spK * 100).toFixed(1) + "%");
+        setClass(spBtn, "cooling", B.player.spellCd > 0);
+        setClass(spBtn, "ready", spellReady && !B.paused && !B.over);
+        setText(spStateEl, B.player.spellCd > 0 ? Math.ceil(B.player.spellCd) + "s" : spellReason ? "Blocked" : "Ready");
         spBtn.disabled = B.paused || B.over;
-        spBtn.setAttribute("aria-disabled", String(spBtn.disabled || B.player.spellCd > 0 || !!spellReason));
-        spBtn.setAttribute("aria-label", `${T.spell.name} (R). ${spellState}`);
+        setAttr(spBtn, "aria-disabled", String(spBtn.disabled || !spellReady));
+        setAttr(spBtn, "aria-label", `${T.spell.name} (R). ${spellState}`);
         updateTip(spBtn, `${T.spell.name} · ${spellState}\n${T.spell.desc}\nCast: R / Tap Totem`);
         const hz = B.stage.hazard;
-        hazard.classList.toggle("hidden", !hz || B.paused || B.over);
+        setClass(hazard, "hidden", !hz || B.paused || B.over);
         if (hazard.classList.contains("hidden") && getTipTarget() === hazard) hideTip();
         if (hz) {
-          if (hazard.textContent !== hz.name) hazard.textContent = hz.name;
+          setText(hazard, hz.name);
           updateTip(hazard, `Biome hazard: ${hz.name}\n${hz.desc}`);
         }
-        arrival.classList.toggle("hidden", !arrivalUntil || performance.now() >= arrivalUntil || B.paused || B.over);
-        const warning = $(".surge-warning", hud);
-        warning.classList.toggle("hidden", B.surgeT > 5 || B.paused || B.over);
-        const warningText = `Enemy surge in ${Math.ceil(B.surgeT)}s`;
-        if (warning.textContent !== warningText) warning.textContent = warningText;
-        const alive = B.ents.filter(e => !e.dead && e.side === "player" && e.kind === "unit").length;
-        const dep = $(".deployed", hud);
-        if (dep.dataset.n !== String(alive)) {
-          dep.dataset.n = alive; dep.innerHTML = "";
-          for (let i = 0; i < Math.min(alive, 8); i++) dep.append(h("i"));
-          if (alive > 8) dep.append(h("b", {}, "+" + (alive - 8)));
-          updateTip(dep, `Active warriors on the lane: ${alive}`);
+        setClass(arrival, "hidden", !arrivalUntil || performance.now() >= arrivalUntil || B.paused || B.over);
+        const showSurge = B.surgeT <= 5 && !B.paused && !B.over;
+        setClass(warningEl, "hidden", !showSurge);
+        if (showSurge) setText(warningEl, `Enemy surge in ${Math.ceil(B.surgeT)}s`);
+        let alive = 0;
+        for (const e of B.ents) if (!e.dead && e.side === "player" && e.kind === "unit") alive++;
+        if (depEl.dataset.n !== String(alive)) {
+          depEl.dataset.n = alive; depEl.innerHTML = "";
+          for (let i = 0; i < Math.min(alive, 8); i++) depEl.append(h("i"));
+          if (alive > 8) depEl.append(h("b", {}, "+" + (alive - 8)));
+          updateTip(depEl, `Active warriors on the lane: ${alive}`);
         }
         B.slots.forEach((s, i) => {
+          const dom = slotDom[i];
           const cost = B.costOf(s), cdMax = 1.5 + s.stats.cost / 45;
-          const costLabel = $(".cost", btns[i]);
-          if (costLabel.textContent !== String(cost)) costLabel.textContent = cost;
+          setText(dom.costEl, cost);
           const shortfall = Math.max(0, Math.ceil(cost - B.gold));
           const deployState = s.cd > 0 ? `Deploy again in ${Math.ceil(s.cd)}s` : shortfall ? `Need ${shortfall} more gold` : "Ready to deploy";
           const detail = `${unitTip(s.name, tribe, s.stats, cost)}\n${deployState}\nDeploy: ${i + 1} · Cast: ${AB_KEYS[i]}`;
-          updateTip(btns[i], detail);
-          updateTip(btns[i].parentElement, detail);
+          updateTip(dom.btn, detail);
+          updateTip(dom.slotEl, detail);
           const k = s.cd / cdMax;
-          $(".cool", btns[i]).style.setProperty("--cd", (k * 100) + "%");
-          const runes = btns[i].querySelectorAll(".spiral span");
-          runes.forEach((r, j) => { r.style.opacity = Math.max(0, Math.min(1, k * runes.length - j)).toFixed(2); });
-          btns[i].classList.toggle("poor", B.gold < cost);
-          const deployLabel = $(".deploy-cd", btns[i]);
-          deployLabel.textContent = s.cd > 0 ? Math.ceil(s.cd) + "s" : shortfall ? `Need ${shortfall}g` : "";
-          deployLabel.classList.toggle("shortfall", s.cd <= 0 && shortfall > 0);
-          btns[i].disabled = B.paused || B.over;
-          btns[i].setAttribute("aria-disabled", String(btns[i].disabled || s.cd > 0 || shortfall > 0));
-          btns[i].setAttribute("aria-label", `Deploy ${s.name} (${i + 1}), ${cost} gold. ${deployState}`);
+          setCss(dom.coolEl, "--cd", (k * 100).toFixed(1) + "%");
+          dom.runes.forEach((r, j) => { setCss(r, "opacity", Math.max(0, Math.min(1, k * dom.runes.length - j)).toFixed(2)); });
+          setClass(dom.btn, "poor", B.gold < cost);
+          setText(dom.deployCdEl, s.cd > 0 ? Math.ceil(s.cd) + "s" : shortfall ? `Need ${shortfall}g` : "");
+          setClass(dom.deployCdEl, "shortfall", s.cd <= 0 && shortfall > 0);
+          dom.btn.disabled = B.paused || B.over;
+          setAttr(dom.btn, "aria-disabled", String(dom.btn.disabled || s.cd > 0 || shortfall > 0));
+          setAttr(dom.btn, "aria-label", `Deploy ${s.name} (${i + 1}), ${cost} gold. ${deployState}`);
           const state = B.abilityState(i);
           const castState = !state.deployed ? "Deploy first" : state.ready ? (state.ready > 1 ? `${state.ready} ready` : "Ready") : `Ready in ${Math.ceil(state.cooldown)}s`;
           const ability = BC.UNITS[s.name].ability;
-          $(".cast-state", castBtns[i]).textContent = !state.deployed || state.ready ? castState : Math.ceil(state.cooldown) + "s";
-          updateTip(castBtns[i], `${ability.name} · ${castState}\n${ability.desc}\nCast: ${AB_KEYS[i]} / Shift+${i + 1}`);
-          castBtns[i].disabled = B.paused || B.over;
-          castBtns[i].setAttribute("aria-disabled", String(castBtns[i].disabled || !state.ready));
-          castBtns[i].setAttribute("aria-label", `Cast ${ability.name} (${AB_KEYS[i]}). ${castState}`);
-          castBtns[i].classList.toggle("ready", state.ready > 0);
+          setText(dom.castStateEl, !state.deployed || state.ready ? castState : Math.ceil(state.cooldown) + "s");
+          updateTip(dom.castBtn, `${ability.name} · ${castState}\n${ability.desc}\nCast: ${AB_KEYS[i]} / Shift+${i + 1}`);
+          dom.castBtn.disabled = B.paused || B.over;
+          setAttr(dom.castBtn, "aria-disabled", String(dom.castBtn.disabled || !state.ready));
+          setAttr(dom.castBtn, "aria-label", `Cast ${ability.name} (${AB_KEYS[i]}). ${castState}`);
+          setClass(dom.castBtn, "ready", state.ready > 0);
         });
       },
     });
@@ -280,6 +322,7 @@
     addEventListener("keydown", keyHandler);
     return () => {
       clearTimeout(toastT);
+      clearTimeout(goldPopTimer);
       btnWrap.removeEventListener("click", inspectUnit);
       document.removeEventListener("visibilitychange", onVisibility);
       removeEventListener("blur", onBlur);
@@ -292,54 +335,8 @@
   // -------------------------------------------------------------- result --
   let lastResult = null;
   function endBattle(r) {
-    const tribe = S().tribe;
-    r.endless = lastEndless;
-    r.rewards = [];
-    for (const [k, cnt] of Object.entries(r.stats.killedByType || {})) {
-      S().bestiary[k] = (S().bestiary[k] || 0) + cnt;
-    }
-    if (lastEndless) {
-      const waves = r.stats.waves || 1;
-      S().endless[tribe] = Math.max(S().endless[tribe] || 0, waves);
-      const burnCount = Math.floor((waves - 1) / 2);
-      for (let i = 0; i < burnCount; i++) {
-        const b = BC.makeBurn(BC.rollTier(Math.min(9, waves)));
-        S().burns.push(b);
-        r.rewards.push({ kind: "burn", burn: b });
-      }
-    } else if (r.win) {
-      const firstClear = lastStage === S().progress[tribe];
-      if (firstClear) {
-        S().progress[tribe] = Math.min(10, lastStage + 1);
-        const newUnit = lastStage + 3 < 10 ? BC.tribeUnits(tribe)[lastStage + 3] : null;
-        if (newUnit) {
-          if (!S().newUnits.includes(newUnit)) S().newUnits.push(newUnit);
-          r.rewards.push({ kind: "unit", name: newUnit });
-        }
-      }
-      const n = firstClear ? 2 : 1;
-      for (let i = 0; i < n; i++) {
-        const b = BC.makeBurn(BC.rollTier(lastStage));
-        S().burns.push(b);
-        r.rewards.push({ kind: "burn", burn: b });
-      }
-    }
-    // Achievements — the only source of Cosmic Brands.
-    const st = r.stats, done = S().achievements;
-    const earned = {
-      flawless: r.win && st.baseDmg === 0,
-      regicide: st.bossKilled,
-      tithe: st.goldEarned >= 3000,
-      tribes: ["offense", "defense", "greed"].every(k => S().progress[k] >= 10),
-    };
-    for (const [id, ok] of Object.entries(earned)) {
-      if (!ok || done[id]) continue;
-      done[id] = Date.now();
-      const b = BC.makeBurn(BC.ACHIEVEMENTS[id].reward);
-      S().burns.push(b);
-      r.rewards.push({ kind: "achievement", id, burn: b });
-    }
-    BC.persist();
+    if (!r || r.resolved) return;
+    BC.resolveBattleRewards(r, { tribe: S().tribe, stage: lastStage, endless: lastEndless });
     lastResult = r;
     show("result", true, { required: true });
   }
@@ -380,10 +377,11 @@
         const loot = i % 9 === 4 && r.rewards.some(x => x.burn);
         const burn = loot && r.rewards.find(x => x.burn).burn;
         const c = h("div", { class: "coinfx" + (loot ? " loot" : ""), style: `--dx:${(Math.random() * 2 - 1) * 160}px;--dy:${20 + Math.random() * 50}px;--r:${Math.random() * 720 - 360}deg;animation-delay:${0.4 + Math.random() * 0.5}s` },
-          loot ? h("img", { src: BC.iconURL("artifacts:" + S().tribe, burn.tier, 32) }) : null);
+          loot ? h("img", { alt: "", src: BC.iconURL("artifacts:" + S().tribe, burn.tier, 32) }) : null);
         chest.append(c);
       }
       rewardSounds.push(setTimeout(() => BC.sfx.coin(), 500), setTimeout(() => BC.sfx.coin(), 700), setTimeout(() => BC.sfx.chime(), 900));
+      if (r.rewards.some(x => x.kind === "achievement")) rewardSounds.push(setTimeout(() => BC.sfx.ach?.(), 1100));
       const line = h("div", { class: "reward-line" });
       r.rewards.forEach((x, i) => {
         if (x.kind === "unit") {
@@ -393,10 +391,16 @@
           } });
           unitRewards.push({ name: x.name, button });
           line.append(h("div", { class: "reward-card new-warrior", style: `border-color:var(--gold);animation-delay:${0.3 + i * 0.25}s` },
-            h("img", { class: "px", src: BC.iconURL("units:" + x.name, 0, 64) }), h("b", {}, "New warrior: " + x.name), button));
+            h("img", { class: "px", alt: "", src: BC.iconURL("units:" + x.name, 0, 64) }), h("b", {}, "New warrior: " + x.name), button));
         }
-        else if (x.kind === "achievement") { const a = BC.ACHIEVEMENTS[x.id], t = BC.BURN_TIERS[x.burn.tier], tx = BC.burnText(x.burn); line.append(h("div", { class: "reward-card", style: `border-color:${t.color};animation-delay:${0.3 + i * 0.25}s` }, h("div", { style: "color:#ffd700" }, "✦ " + a.name), h("img", { class: "px", src: BC.iconURL("artifacts:" + S().tribe, x.burn.tier, 32) }), h("b", { style: `color:${t.color}` }, t.name), h("div", { style: "color:#7dff8a" }, tx.up), h("div", { style: "color:#ff7d7d" }, tx.down), h("button", { class: "stone-btn reward-add", onclick: () => BC.UI.openWarband("result", null, x.burn.id) }, "Equip in Warband"))); }
-        else { const t = BC.BURN_TIERS[x.burn.tier], tx = BC.burnText(x.burn); line.append(h("div", { class: "reward-card", style: `border-color:${t.color};animation-delay:${0.3 + i * 0.25}s` }, h("img", { class: "px", src: BC.iconURL("artifacts:" + S().tribe, x.burn.tier, 32) }), h("b", { style: `color:${t.color}` }, t.name), h("div", { style: "color:#7dff8a" }, tx.up), h("div", { style: "color:#ff7d7d" }, tx.down), h("button", { class: "stone-btn reward-add", onclick: () => BC.UI.openWarband("result", null, x.burn.id) }, "Equip in Warband"))); }
+        else if (x.kind === "ash") {
+          line.append(h("div", { class: "reward-card ash-reward", style: `border-color:#ff9f1c;animation-delay:${0.3 + i * 0.25}s` },
+            h("div", { class: "ash-glyph", "aria-hidden": "true" }, "✦"),
+            h("b", { style: "color:#ff9f1c" }, `+${x.amount} Crimson Ash`),
+            h("div", { style: "color:#d9c5a0;font-size:12px" }, "Reroll burn stats in Warband")));
+        }
+        else if (x.kind === "achievement") { const a = BC.ACHIEVEMENTS[x.id], t = BC.BURN_TIERS[x.burn.tier], tx = BC.burnText(x.burn); line.append(h("div", { class: "reward-card", style: `border-color:${t.color};animation-delay:${0.3 + i * 0.25}s` }, h("div", { style: "color:#ffd700" }, "✦ " + a.name), h("img", { class: "px", alt: "", src: BC.iconURL("artifacts:" + S().tribe, x.burn.tier, 32) }), h("b", { style: `color:${t.color}` }, t.name), h("div", { style: "color:#7dff8a" }, tx.up), h("div", { style: "color:#ff7d7d" }, tx.down), h("button", { class: "stone-btn reward-add", onclick: () => BC.UI.openWarband("result", null, x.burn.id) }, "Equip in Warband"))); }
+        else { const t = BC.BURN_TIERS[x.burn.tier], tx = BC.burnText(x.burn); line.append(h("div", { class: "reward-card", style: `border-color:${t.color};animation-delay:${0.3 + i * 0.25}s` }, h("img", { class: "px", alt: "", src: BC.iconURL("artifacts:" + S().tribe, x.burn.tier, 32) }), h("b", { style: `color:${t.color}` }, t.name), h("div", { style: "color:#7dff8a" }, tx.up), h("div", { style: "color:#ff7d7d" }, tx.down), h("button", { class: "stone-btn reward-add", onclick: () => BC.UI.openWarband("result", null, x.burn.id) }, "Equip in Warband"))); }
       });
       rw.append(line);
       if (!r.endless && lastStage === 9) rw.append(h("p", { class: "parchment", style: "max-width:520px" }, "The Collector King drowns in his own gold, and the river finally gives back its dead. Your wife's name is spoken in every village you freed. It does not bring her home."));

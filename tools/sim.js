@@ -10,20 +10,31 @@
 const assert = require("node:assert/strict");
 const { BC, mockCanvas, noop } = require("./headless.cjs");
 
-function runStage(tribe, stageIdx, lineup, endless = false, maxTime = 240, seedOffset = 0) {
+function runStage(tribe, stageIdx, lineup, endless = false, maxTime = 240, seedOffset = 0, sensible = false) {
   let result = null;
   const b = new BC.Battle(mockCanvas(), {
     tribe, stage: stageIdx, endless, lineup, autocast: true, seed: 1234567 + stageIdx * 977 + seedOffset,
     onEnd: (r) => { result = r; },
   });
-  let deployTick = 0;
+  const isFront = (name) => { const s = BC.UNITS[name].stats; return s.range <= 30 && s.hp >= 150; };
+  let deployTick = 0, turn = 0;
   while (!b.over && b.t < maxTime) {
     b.update(BC.BATTLE_STEP);
     deployTick += BC.BATTLE_STEP;
     if (deployTick >= 0.4) {
       deployTick = 0;
-      const idx = b.rnd(b.slots.length);
-      b.deploy(idx);
+      if (!sensible) {
+        const idx = b.rnd(b.slots.length);
+        b.deploy(idx);
+      } else {
+        const alive = b.ents.filter(e => !e.dead && e.side === "player" && e.kind === "unit");
+        const wantFront = alive.filter(e => isFront(e.name)).length <= alive.filter(e => !isFront(e.name)).length;
+        const order = b.slots.map((_, i) => i).filter(i => isFront(b.slots[i].name) === wantFront).concat(b.slots.map((_, i) => i));
+        for (let k = 0; k < order.length; k++) {
+          const i = order[(k + turn) % order.length];
+          if (b.slots[i].cd <= 0 && b.gold >= b.costOf(b.slots[i])) { b.deploy(i); turn++; break; }
+        }
+      }
     }
   }
   b.destroy();
@@ -272,7 +283,26 @@ function testFeatures() {
   assert.deepEqual(BC.fillLineup("offense"), [own[0], own[1], own[3]]);
   assert.deepEqual(BC.lineup("offense"), [own[2], merc[0], own[0], own[1], own[3]]);
   assert.equal(new Set(BC.lineup("offense")).size, 5);
-  console.log("[OK] Feature verification passed (Burns, Mercenaries, Spells, Pause, Royal Bribe, Tutorial, Ability Readiness, Reward Lineups).");
+
+  // 8. Pure battle reward resolution: once-only guard, achievement Cosmic Brands, and Endless Ash.
+  BC.resetSave();
+  BC.save.tribe = "offense";
+  const winOutcome = { win: true, stats: { killedByType: { collector: 5, king: 1 }, baseDmg: 0, bossKilled: true, goldEarned: 3200 } };
+  const firstRewards = BC.resolveBattleRewards(winOutcome, { tribe: "offense", stage: 0, endless: false });
+  const burnsAfterFirst = BC.save.burns.length;
+  assert.equal(BC.save.progress.offense, 1);
+  assert.equal(BC.save.bestiary.collector, 5);
+  assert.ok(BC.save.achievements.flawless && BC.save.achievements.regicide && BC.save.achievements.tithe);
+  assert.ok(firstRewards.some(r => r.kind === "achievement" && r.id === "regicide" && r.burn.tier === 6), "Regicide awards a Cosmic Brand");
+  assert.equal(BC.resolveBattleRewards(winOutcome, { tribe: "offense", stage: 0, endless: false }), firstRewards, "Repeated resolution returns same rewards without double-granting");
+  assert.equal(BC.save.burns.length, burnsAfterFirst, "Once-only guard blocks duplicate burn drops");
+  const endlessOutcome = { win: false, retreat: true, stats: { waves: 4, killedByType: { hound: 3 } } };
+  BC.resolveBattleRewards(endlessOutcome, { tribe: "offense", endless: true });
+  assert.equal(BC.save.endless.offense, 4);
+  assert.equal(BC.save.ash, 6, "Endless run grants Crimson Ash for waves survived");
+  assert.equal(endlessOutcome.rewards.filter(r => r.kind === "burn").length, 2, "Wave 4 Endless run grants 2 Runic Burns");
+  BC.resetSave();
+  console.log("[OK] Feature verification passed (Burns, Mercenaries, Spells, Pause, Royal Bribe, Tutorial, Ability Readiness, Reward Lineups, Pure Rewards).");
 }
 
 function main() {
@@ -324,7 +354,7 @@ function main() {
           BC.save.burns.push(burn);
           BC.save.equipped[unit] = burn.id;
         }
-        const res = runStage(tribe, s, plan.lineup, false, 300, r * 101);
+        const res = runStage(tribe, s, plan.lineup, false, 300, r * 101, true);
         if (res.win) { wins++; totalTime += res.time; totalHp += res.baseHpPct; }
       }
       const avg = wins ? ` (${Math.round(totalTime / wins)}s, ${Math.round(totalHp / wins)}% HP)` : "";

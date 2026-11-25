@@ -49,10 +49,17 @@
     $(".opt-motion", m).onchange = e => { S().settings.motion = e.target.value; BC.persist(); syncMotion(); };
     const al = $(".ach-list", m);
     al.innerHTML = "";
-    al.append(h("b", { style: "color:var(--gold)" }, "Achievements"));
-    for (const [id, a] of Object.entries(BC.ACHIEVEMENTS)) {
-      al.append(h("div", { class: "ach" + (S().achievements[id] ? " got" : ""), "data-tip": `Reward: ${BC.BURN_TIERS[a.reward].name}` },
-        h("i", { "aria-hidden": "true" }, S().achievements[id] ? "✦" : "✧"), h("div", {}, h("b", {}, a.name), h("small", {}, a.desc)), h("span", { class: "ach-state" }, S().achievements[id] ? "Earned" : "Locked")));
+    const tribe = S().tribe || "offense";
+    const achEntries = Object.entries(BC.ACHIEVEMENTS);
+    const achEarned = achEntries.filter(([id]) => S().achievements[id]).length;
+    al.append(h("b", { style: "color:var(--gold)" }, `Honours & Achievements (${achEarned}/${achEntries.length})`));
+    for (const [id, a] of achEntries) {
+      const got = !!S().achievements[id];
+      const tier = BC.BURN_TIERS[a.reward];
+      al.append(h("div", { class: "ach" + (got ? " got" : ""), "data-tip": `Reward: ${tier.name} — ${tier.lore}` },
+        h("img", { class: "px ach-icon", alt: "", src: BC.iconURL("artifacts:" + tribe, a.reward, 32) }),
+        h("div", {}, h("b", {}, a.name), h("small", {}, `${a.desc} · Reward: ${tier.name}`)),
+        h("span", { class: "ach-state" }, got ? "Earned" : "Locked")));
     }
     $(".close", m).onclick = () => closeDialog(m);
     $(".close-icon", m).onclick = () => closeDialog(m);
@@ -99,4 +106,7 @@
   initAudioControls();
   if (S().tribe) applyTribeVars(S().tribe);
   BC.UI.boot();
+  if ("serviceWorker" in navigator && /^https?:$/.test(location.protocol) && !window.__BC_NO_SW) {
+    addEventListener("load", () => { navigator.serviceWorker.register("sw.js").catch(() => {}); }, { once: true });
+  }
 })();

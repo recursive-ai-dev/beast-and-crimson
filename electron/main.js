@@ -3,6 +3,11 @@
 const path = require("path");
 const { app, BrowserWindow } = require("electron");
 
+// Desktop builds should play music/SFX immediately and let Chromium's audio
+// service reach PipeWire / PulseAudio / ALSA cleanly across Linux sandboxes.
+app.commandLine.appendSwitch("autoplay-policy", "no-user-gesture-required");
+app.commandLine.appendSwitch("disable-features", "AudioServiceSandbox");
+
 function createWindow() {
   const win = new BrowserWindow({
     width: 1280,

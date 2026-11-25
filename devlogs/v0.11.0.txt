@@ -1,0 +1,25 @@
+Beast and Crimson - v0.11.0 Devlog
+Date: 2026-11-25
+
+---
+
+Cinematic Intro Polish
+
+- Refined all six parallax story shots: harvest dusk moon and torch-lit collector march, stormlit river contrast, rising oath embers, unobstructed tribe war-banners and fire braziers, full 128x128 obsidian citadel with the Collector King standing on high battlements, and a clean rebellion ridge finale with beat-progress pips and sharper subtitle typography.
+- Removed the em-dash from the river narration subtitle and unified "the crown" terminology across the opening story.
+
+---
+
+Linux .deb & Desktop Audio Fix
+
+- Fixed restrictive directory/file permissions in .deb and .rpm packaging when built under umask 0077 so installed desktop packages launch directly as a normal user with full PipeWire / PulseAudio session access.
+- Unpacked streamed MP3 soundtrack and unit voice assets outside app.asar, disabled Chromium's Linux AudioServiceSandbox restriction, and enabled immediate desktop audio playback on launch.
+
+---
+
+Combat Spectacle, Accessibility & Web Polish
+
+- Added unit hop strides, melee lunges, shield wards, bespoke ability bursts/beams/slashes, biome weather VFX, champion/Collector King boss bars, and stronghold collapse animations.
+- Added the Honours dialog on the Campaign screen, pure once-only battle reward resolution, per-asset load retry, compressed WOFF fonts, strict CSP, and offline PWA manifest/service worker support.
+
+Available on itch.io (Web HTML5 + Linux AppImage) and GitHub Releases (.AppImage, .deb, .rpm).

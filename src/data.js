@@ -14,15 +14,16 @@
       mods: { dmg: 1.25, hp: 1.25 },
       bgScene: "pits",
       spell: {
-        name: "Blood Sacrifice", cd: 28,
-        desc: "Spill 5% of the Totem's current life: all deployed warriors gain +35% damage and +35% attack speed for 7s. Requires at least 35% Totem health and a deployed warrior.",
+        name: "Blood Sacrifice", cd: 26,
+        desc: "Spill 5% of the Totem's current life: all deployed warriors gain +35% damage, +35% attack speed, and 25% lifesteal for 7s. Requires at least 35% Totem health and a deployed warrior.",
         unavailable: (B) => !B.alliesNear(240, 500).length ? "Deploy a warrior first" : B.player.hp < B.player.max * 0.35 ? "Requires at least 35% Totem health" : "",
         run: (B) => {
           const allies = B.alliesNear(240, 500);
           if (B.tribe.spell.unavailable(B)) return false;
           B.player.hp = Math.max(1, B.player.hp * 0.95);
           B.player.flash = 0.25;
-          allies.forEach(a => { B.buff(a, "dmg", 1.35, 7); B.buff(a, "atkspd", 1.35, 7); B.impact(a, a); });
+          B.burst?.(34, 152, "#FF4500", 18, "ring");
+          allies.forEach(a => { B.buff(a, "dmg", 1.35, 7); B.buff(a, "atkspd", 1.35, 7); B.status(a, "lifesteal", 7, 0.25); B.impact(a, a); });
         },
       },
     },
@@ -39,7 +40,9 @@
         run: (B) => {
           const allies = B.alliesNear(240, 500);
           const frontX = allies.reduce((m, a) => Math.max(m, a.x), 80);
-          B.decoy({ side: "player", name: "Totem Shieldbearer", base: { hp: 450, dmg: 0, def: 18, move: 0, range: 20, atkspd: 0.5 }, x: Math.min(400, frontX + 24), dir: 1, sprite: "bases:defense", yOff: -4 }, Math.min(400, frontX + 24), 450);
+          const bx = Math.min(400, frontX + 24);
+          B.decoy({ side: "player", name: "Totem Shieldbearer", base: { hp: 450, dmg: 0, def: 18, move: 0, range: 20, atkspd: 0.5 }, x: bx, dir: 1, sprite: "bases:defense", yOff: -4 }, bx, 450);
+          B.burst?.(bx, 178, "#87CEEB", 16, "ring");
           allies.forEach(a => { B.shield(a, 80); B.impact(a, a); });
         },
       },
@@ -52,16 +55,18 @@
       mods: { income: 1.25, bounty: 1.35 },
       bgScene: "cave",
       spell: {
-        name: "Royal Bribe", cd: 34,
-        desc: "Buy off the strongest non-boss foe at 75% life to fight for Goldclaw and pay you 25 gold. With no foe to buy, mint 75 gold.",
+        name: "Royal Bribe", cd: 38,
+        desc: "Buy off the strongest non-boss foe at 60% life to fight for Goldclaw and pay you 25 gold. With no foe to buy, mint 75 gold.",
         run: (B) => {
           const foes = B.foesOf("player").filter(e => !(e.def && e.def.boss)).sort((a, b) => b.hp - a.hp);
           if (foes[0]) {
             const f = foes[0];
-            f.side = "player"; f.dir = 1; f.hp = f.s.hp * 0.75; f.shield = 0;
+            f.side = "player"; f.dir = 1; f.hp = f.s.hp * 0.6; f.shield = 0;
             B.text(f.x, 140, "BRIBED!", "#FFD700", 1.1);
+            B.burst?.(f.x, 168, "#FFD700", 18, "coins");
             B.addGold(25, f);
           } else {
+            B.burst?.(60, 168, "#FFD700", 16, "coins");
             B.addGold(75, { x: 60 });
           }
         },
@@ -79,71 +84,71 @@
   const UNITS = {
     // ---- GREED (Goldclaw) -------------------------------------------------
     "Golden Totemist": U("greed", "Ranged", [70, 120, 14, 4, 1.0, 22, 60, 20, 11, 0.5],
-      { name: "Totem Tithe", desc: "Hurls a golden totem at the nearest foe in reach and always skims 15 gold.", fx: "nearest", run: (B, u) => { const t = B.nearestEnemy(u, u.s.range * 1.5); if (t) { B.hit(u, t, u.s.abpwr * 2.5); B.impact(u, t); } B.addGold(15, u); } }),
+      { name: "Totem Tithe", desc: "Hurls a golden totem at the nearest foe in reach and always skims 15 gold.", fx: "nearest", run: (B, u) => { const t = B.nearestEnemy(u, u.s.range * 1.5); if (t) { B.beam?.(u.x, 168 + u.yOff, t.x, 172 + t.yOff, "#FFD700", "coin"); B.hit(u, t, u.s.abpwr * 2.5); B.impact(u, t); } B.addGold(15, u); } }),
     "Baron": U("greed", "Support", [150, 160, 10, 6, 0.7, 18, 30, 30, 14, 1],
-      { name: "Crown Levy", desc: "Crowns the strongest foe for heavy damage and levies 10 gold plus 10% of your purse (90 at most).", run: (B, u) => { const t = B.strongestEnemy(u, 220); if (t) { B.hit(u, t, u.s.abpwr * 3); B.impact(u, t); } B.addGold(Math.min(80, Math.floor(B.gold * 0.1)) + 10, u); } }),
+      { name: "Crown Levy", desc: "Crowns the strongest foe for heavy damage and levies 10 gold plus 10% of your purse (90 at most).", run: (B, u) => { const t = B.strongestEnemy(u, 220); if (t) { B.burst?.(t.x, 164, "#FFD700", 12, "pillar"); B.hit(u, t, u.s.abpwr * 3); B.impact(u, t); } B.addGold(Math.min(80, Math.floor(B.gold * 0.1)) + 10, u); } }),
     "Pledge Warbeast": U("greed", "Bruiser", [110, 260, 26, 8, 0.9, 30, 22, 25, 12, 1],
-      { name: "Pledged Fang", desc: "A frenzied bite for 4x ability power that heals for 30% of the damage.", run: (B, u) => { const t = B.nearestEnemy(u, u.s.range + 30); if (!t) return false; const d = B.hit(u, t, u.s.abpwr * 4); B.heal(u, d * 0.3); B.impact(u, t); } }),
+      { name: "Pledged Fang", desc: "A frenzied bite for 4x ability power that heals for 30% of the damage.", run: (B, u) => { const t = B.nearestEnemy(u, u.s.range + 30); if (!t) return false; B.slash?.(u.x, t.x, "#dc141e"); const d = B.hit(u, t, u.s.abpwr * 4); B.heal(u, d * 0.3); B.impact(u, t); } }),
     "Resource Warlock": U("greed", "Caster", [160, 110, 18, 2, 0.8, 18, 90, 20, 12, 0.5],
-      { name: "Compound Interest", desc: "Opens the vault: damages every foe in range for ability power + 1 per 15 gold held.", run: (B, u) => { const ts = B.enemiesNear(u.x, u.s.range + 20); if (!ts.length) return false; const amt = u.s.abpwr + B.gold / 15; ts.forEach(t => { B.hit(u, t, amt); B.impact(u, t); }); } }),
+      { name: "Compound Interest", desc: "Opens the vault: damages every foe in range for ability power + 1 per 15 gold held.", run: (B, u) => { const ts = B.enemiesNear(u.x, u.s.range + 20); if (!ts.length) return false; B.burst?.(u.x, 174, "#FFD700", 14, "ring"); const amt = u.s.abpwr + B.gold / 15; ts.forEach(t => { B.hit(u, t, amt); B.impact(u, t); }); } }),
     "Mine Spirit": U("greed", "Economy", [90, 90, 6, 2, 0.6, 14, 40, 15, 11, 1],
-      { name: "Nugget Burst", desc: "Passive: +2 gold/s while alive. Active: shakes loose 25 + ability power gold.", run: (B, u) => { B.addGold(25 + u.s.abpwr, u); B.impact(u, u); } },
+      { name: "Nugget Burst", desc: "Passive: +2 gold/s while alive. Active: shakes loose 25 + ability power gold.", run: (B, u) => { B.burst?.(u.x, 174, "#FFD700", 10, "coins"); B.addGold(25 + u.s.abpwr, u); B.impact(u, u); } },
       { passive: { gold: 2 } }),
     "Goldweb Spider": U("greed", "Control", [100, 140, 12, 4, 1.0, 26, 50, 15, 11, 0.5],
-      { name: "Gilded Web", desc: "Webs the ground ahead: foes inside are slowed 50% for 4s and take light damage.", run: (B, u) => { const ts = B.enemiesNear(u.x + 40 * u.dir, 70); if (!ts.length) return false; ts.forEach(t => { B.hit(u, t, u.s.abpwr); B.status(t, "slow", 4, 0.5); B.impact(u, t); }); } }),
+      { name: "Gilded Web", desc: "Webs the ground ahead: foes inside are slowed 50% for 4s and take light damage.", run: (B, u) => { const cx = u.x + 40 * u.dir; const ts = B.enemiesNear(cx, 70); if (!ts.length) return false; B.burst?.(cx, 188, "#FFD700", 14, "web"); ts.forEach(t => { B.hit(u, t, u.s.abpwr); B.status(t, "slow", 4, 0.5); B.impact(u, t); }); } }),
     "Totem Insurer": U("greed", "Guardian", [120, 200, 10, 12, 0.8, 20, 25, 30, 15, 1],
-      { name: "Blood Insurance", desc: "Allies nearby gain a shield worth 3x ability power. Allies who fall in the next 8s refund half their cost.", run: (B, u) => { B.alliesNear(u.x, 110).forEach(a => { B.shield(a, u.s.abpwr * 3); B.status(a, "insured", 8, 0.5); B.impact(u, a); }); } }),
+      { name: "Blood Insurance", desc: "Allies nearby gain a shield worth 3x ability power. Allies who fall in the next 8s refund half their cost.", run: (B, u) => { B.burst?.(u.x, 178, "#FFD700", 12, "ring"); B.alliesNear(u.x, 110).forEach(a => { B.shield(a, u.s.abpwr * 3); B.status(a, "insured", 8, 0.5); B.impact(u, a); }); } }),
     "Golden Archer": U("greed", "Sniper", [130, 100, 22, 2, 0.9, 24, 140, 30, 10, 0.3],
-      { name: "Gilded Shaft", desc: "An arrow that pierces every foe in a long line for 2x ability power.", run: (B, u) => { const ts = B.enemiesBetween(u.x, u.x + u.dir * u.s.range * 1.6); if (!ts.length) return false; ts.forEach(t => { B.hit(u, t, u.s.abpwr * 2); B.impact(u, t); }); } }),
+      { name: "Gilded Shaft", desc: "An arrow that pierces every foe in a long line for 2x ability power.", run: (B, u) => { const x1 = u.x + u.dir * u.s.range * 1.6; const ts = B.enemiesBetween(u.x, x1); if (!ts.length) return false; B.beam?.(u.x, 172 + u.yOff, x1, 172 + u.yOff, "#FFD700", "pierce"); ts.forEach(t => { B.hit(u, t, u.s.abpwr * 2); B.impact(u, t); }); } }),
     "Golden Beffalo": U("greed", "Tank", [140, 360, 14, 14, 0.6, 20, 22, 20, 14, 2],
-      { name: "Golden Horns", desc: "Charges into the line, damaging and hurling back every foe close by.", run: (B, u) => { const ts = B.enemiesNear(u.x + 20 * u.dir, 50); if (!ts.length) return false; ts.forEach(t => { B.hit(u, t, u.s.abpwr * 2); B.knock(t, 40 * u.dir); B.impact(u, t); }); } }),
+      { name: "Golden Horns", desc: "Charges into the line, damaging and hurling back every foe close by.", run: (B, u) => { const ts = B.enemiesNear(u.x + 20 * u.dir, 50); if (!ts.length) return false; B.burst?.(u.x + 20 * u.dir, 184, "#FFD700", 12, "ring"); ts.forEach(t => { B.hit(u, t, u.s.abpwr * 2); B.knock(t, 40 * u.dir); B.impact(u, t); }); } }),
     "Trade Pact Alpha": U("greed", "Commander", [200, 180, 12, 6, 0.8, 20, 60, 25, 16, 1],
-      { name: "Coin Rain", desc: "Gold falls on the enemy line (2x ability power, area) and all deployments cost 25% less for 8s.", run: (B, u) => { const t = B.nearestEnemy(u, 200); if (t) B.enemiesNear(t.x, 60).forEach(e => { B.hit(u, e, u.s.abpwr * 2); B.impact(u, e); }); B.side(u).discountT = 8; } }),
+      { name: "Coin Rain", desc: "Gold falls on the enemy line (2x ability power, area) and all deployments cost 25% less for 8s.", run: (B, u) => { const t = B.nearestEnemy(u, 200); if (t) { B.burst?.(t.x, 142, "#FFD700", 20, "rain"); B.enemiesNear(t.x, 60).forEach(e => { B.hit(u, e, u.s.abpwr * 2); B.impact(u, e); }); } B.side(u).discountT = 8; } }),
 
     // ---- DEFENSE (Guardvaw) -----------------------------------------------
-    "Totem Shieldbearer": U("defense", "Tank", [70, 380, 12, 22, 0.7, 18, 22, 20, 12, 2],
-      { name: "Shield Wall", desc: "Allies within reach gain +15 DEF for 6s.", run: (B, u) => { B.alliesNear(u.x, 90).forEach(a => { B.buff(a, "def", 15, 6, true); B.impact(u, a); }); } }),
-    "Healing Shaman": U("defense", "Healer", [110, 120, 9, 4, 0.8, 18, 60, 25, 9, 1],
-      { name: "Feather Mend", desc: "Heals every ally nearby for 2.5x ability power.", run: (B, u) => { const as = B.alliesNear(u.x, 100); as.forEach(a => { B.heal(a, u.s.abpwr * 2.5); B.impact(u, a); }); } }),
-    "Guardian Spirit": U("defense", "Warder", [130, 160, 12, 10, 0.8, 18, 50, 25, 14, 1],
-      { name: "Geometric Barrier", desc: "Wraps allies nearby in a barrier worth 3x ability power.", run: (B, u) => { B.alliesNear(u.x, 100).forEach(a => { B.shield(a, u.s.abpwr * 3); B.impact(u, a); }); } }),
-    "Spirit Slowclaw": U("defense", "Control", [100, 170, 17, 8, 0.9, 22, 40, 20, 10, 1],
-      { name: "Rend Time", desc: "Ethereal claws slow every foe nearby by 60% for 5s and deal light damage.", run: (B, u) => { const ts = B.enemiesNear(u.x, 110); if (!ts.length) return false; ts.forEach(t => { B.status(t, "slow", 5, 0.6); B.hit(u, t, u.s.abpwr * 0.5); B.impact(u, t); }); } }),
-    "Mystic Engineer": U("defense", "Builder", [140, 140, 16, 8, 0.8, 16, 70, 25, 16, 1],
-      { name: "Rune Mending", desc: "Repairs the Totem for 4x ability power and fires turret bolts at three foes.", run: (B, u) => { B.healBase(B.side(u), u.s.abpwr * 4); B.enemiesNear(u.x, 160).slice(0, 3).forEach(t => { B.hit(u, t, u.s.abpwr * 1.5); B.impact(u, t); }); } }),
-    "Warden of the Wild": U("defense", "Jailer", [100, 300, 26, 14, 0.8, 20, 30, 20, 11, 1],
-      { name: "Imprison", desc: "Locks the strongest foe nearby in vine-bound bars for 4s, dealing ability power damage.", run: (B, u) => { const t = B.strongestEnemy(u, 140); if (!t) return false; B.status(t, "stun", 4); B.hit(u, t, u.s.abpwr); B.impact(u, t); } }),
-    "Illusion Weaver": U("defense", "Trickster", [115, 110, 18, 4, 0.9, 20, 60, 20, 15, 0.5],
-      { name: "Mirror Host", desc: "Weaves two illusory decoys that soak blows (each with 4x ability power life).", run: (B, u) => { for (let i = 0; i < 2; i++) B.decoy(u, u.x + (18 + i * 14) * u.dir, u.s.abpwr * 2 * 2); B.impact(u, u); } }),
-    "Guardian of the Grove": U("defense", "Healer", [120, 250, 18, 10, 0.7, 16, 50, 15, 15, 2],
-      { name: "Healing Grove", desc: "Raises a grove that heals allies inside for ability power each second for 6s.", run: (B, u) => { B.zone(u, u.x, 80, 6, (a) => B.heal(a, u.s.abpwr), "ally"); B.impact(u, u); } }),
-    "Ritualist": U("defense", "Blood Rite", [120, 200, 28, 6, 0.8, 18, 60, 30, 14, 1],
-      { name: "Blood Rite", desc: "Spills 25% of its own life: allies nearby deal +40% damage for 6s.", run: (B, u) => { B.hurtSelf(u, u.hp * 0.25); B.alliesNear(u.x, 120).forEach(a => { B.buff(a, "dmg", 1.4, 6); B.impact(u, a); }); } }),
-    "Spirit Guardian": U("defense", "Reviver", [165, 230, 18, 10, 0.7, 16, 50, 0, 18, 1],
-      { name: "Resurrection", desc: "Calls the most recently fallen ally back at 60% life.", unavailable: "No fallen ally to revive", run: (B, u) => { const r = B.revive(u, 0.6); if (!r) return false; B.impact(u, r); } }),
+    "Totem Shieldbearer": U("defense", "Tank", [70, 390, 14, 22, 0.75, 18, 22, 20, 12, 2],
+      { name: "Shield Wall", desc: "Allies within reach gain +15 DEF for 6s.", run: (B, u) => { B.burst?.(u.x, 178, "#87CEEB", 10, "ring"); B.alliesNear(u.x, 90).forEach(a => { B.buff(a, "def", 15, 6, true); B.impact(u, a); }); } }),
+    "Healing Shaman": U("defense", "Healer", [110, 135, 11, 5, 0.8, 18, 60, 26, 9, 1],
+      { name: "Feather Mend", desc: "Heals every ally nearby for 2.5x ability power.", run: (B, u) => { const as = B.alliesNear(u.x, 100); B.burst?.(u.x, 174, "#7dff8a", 12, "motes"); as.forEach(a => { B.heal(a, u.s.abpwr * 2.5); B.impact(u, a); }); } }),
+    "Guardian Spirit": U("defense", "Warder", [130, 175, 14, 11, 0.85, 18, 50, 26, 13, 1],
+      { name: "Geometric Barrier", desc: "Wraps allies nearby in a barrier worth 3x ability power.", run: (B, u) => { B.burst?.(u.x, 176, "#87CEEB", 12, "ring"); B.alliesNear(u.x, 100).forEach(a => { B.shield(a, u.s.abpwr * 3); B.impact(u, a); }); } }),
+    "Spirit Slowclaw": U("defense", "Control", [100, 185, 19, 9, 0.9, 22, 40, 22, 10, 1],
+      { name: "Rend Time", desc: "Ethereal claws slow every foe nearby by 60% for 5s and deal light damage.", run: (B, u) => { const ts = B.enemiesNear(u.x, 110); if (!ts.length) return false; B.burst?.(u.x, 178, "#8cdcff", 14, "ring"); ts.forEach(t => { B.status(t, "slow", 5, 0.6); B.hit(u, t, u.s.abpwr * 0.5); B.impact(u, t); }); } }),
+    "Mystic Engineer": U("defense", "Builder", [140, 155, 18, 9, 0.85, 16, 70, 26, 15, 1],
+      { name: "Rune Mending", desc: "Repairs the Totem for 4x ability power and fires turret bolts at three foes.", run: (B, u) => { B.healBase(B.side(u), u.s.abpwr * 4); B.enemiesNear(u.x, 160).slice(0, 3).forEach(t => { B.beam?.(u.x, 170 + u.yOff, t.x, 172 + t.yOff, "#87CEEB", "bolt"); B.hit(u, t, u.s.abpwr * 1.5); B.impact(u, t); }); } }),
+    "Warden of the Wild": U("defense", "Jailer", [100, 365, 28, 18, 0.85, 20, 30, 24, 11, 2],
+      { name: "Imprison", desc: "Locks the strongest foe nearby in vine-bound bars for 4s, dealing ability power damage.", run: (B, u) => { const t = B.strongestEnemy(u, 140); if (!t) return false; B.status(t, "stun", 4); B.burst?.(t.x, 182, "#7fb069", 10, "vines"); B.hit(u, t, u.s.abpwr); B.impact(u, t); } }),
+    "Illusion Weaver": U("defense", "Trickster", [115, 145, 20, 6, 0.9, 20, 60, 25, 12, 0.8],
+      { name: "Mirror Host", desc: "Weaves two illusory decoys that soak blows (each with 4x ability power life).", run: (B, u) => { for (let i = 0; i < 2; i++) { const dx = u.x + (18 + i * 14) * u.dir; B.decoy(u, dx, u.s.abpwr * 2 * 2); B.burst?.(dx, 176, "#87CEEB", 8, "motes"); } B.impact(u, u); } }),
+    "Guardian of the Grove": U("defense", "Healer", [120, 290, 20, 14, 0.75, 18, 50, 24, 13, 2.5],
+      { name: "Healing Grove", desc: "Raises a grove that heals allies inside for ability power each second for 6s.", run: (B, u) => { B.zone(u, u.x, 80, 6, (a) => B.heal(a, u.s.abpwr), "ally"); B.burst?.(u.x, 182, "#7dff8a", 14, "motes"); B.impact(u, u); } }),
+    "Ritualist": U("defense", "Blood Rite", [120, 230, 30, 9, 0.85, 18, 60, 30, 13, 2.5],
+      { name: "Blood Rite", desc: "Spills 15% of its own life: allies nearby deal +40% damage for 6s.", run: (B, u) => { B.hurtSelf(u, u.hp * 0.15); B.burst?.(u.x, 176, "#ff3b3b", 12, "ring"); B.alliesNear(u.x, 120).forEach(a => { B.buff(a, "dmg", 1.4, 6); B.impact(u, a); }); } }),
+    "Spirit Guardian": U("defense", "Reviver", [155, 265, 22, 12, 0.75, 18, 50, 0, 15, 1.5],
+      { name: "Resurrection", desc: "Calls the most recently fallen ally back at 65% life.", unavailable: "No fallen ally to revive", run: (B, u) => { const r = B.revive(u, 0.65); if (!r) return false; B.burst?.(r.x, 176, "#98FB98", 16, "pillar"); B.impact(u, r); } }),
 
     // ---- OFFENSE (Bloodfang) ----------------------------------------------
-    "Beast Berserker": U("offense", "Bruiser", [80, 230, 24, 6, 1.1, 34, 22, 20, 10, 0.5],
-      { name: "Frenzy", desc: "+60% attack speed and +30% damage for 5s.", run: (B, u) => { B.buff(u, "atkspd", 1.6, 5); B.buff(u, "dmg", 1.3, 5); B.impact(u, u); } }),
-    "Warbeast Drummer": U("offense", "Rallier", [120, 150, 10, 6, 1.0, 22, 30, 0, 14, 1],
-      { name: "War Rhythm", desc: "Allies nearby attack 40% faster for 6s.", run: (B, u) => { B.alliesNear(u.x, 140).forEach(a => { B.buff(a, "atkspd", 1.4, 6); B.impact(u, a); }); } }),
-    "Frenzied Alchemist": U("offense", "Brewer", [120, 130, 14, 4, 0.9, 22, 60, 25, 14, 0.5],
-      { name: "Battle Brew", desc: "Allies nearby gain +30% damage and ability power for 6s.", run: (B, u) => { B.alliesNear(u.x, 120).forEach(a => { B.buff(a, "dmg", 1.3, 6); B.buff(a, "abpwr", 1.3, 6); B.impact(u, a); }); } }),
-    "Shadowstalker": U("offense", "Assassin", [140, 110, 30, 2, 1.0, 40, 22, 40, 12, 0.5],
-      { name: "Silent Death", desc: "Steps through shadow to the weakest foe in sight: 4x ability power, executes below 25% life.", run: (B, u) => { const t = B.weakestEnemy(u, 240); if (!t) return false; u.x = t.x - 14 * u.dir; if (t.hp < t.s.hp * 0.25) B.hit(u, t, t.hp + 999, true); else B.hit(u, t, u.s.abpwr * 4); B.impact(u, t); } }),
-    "Fire Spiritmaster": U("offense", "Caster", [160, 120, 16, 2, 0.8, 18, 90, 30, 12, 0.3],
-      { name: "Pyroclasm", desc: "Erupts the ground under the nearest foe: 2.5x ability power in an area plus burning.", run: (B, u) => { const t = B.nearestEnemy(u, u.s.range + 40); if (!t) return false; B.enemiesNear(t.x, 55).forEach(e => { B.hit(u, e, u.s.abpwr * 2.5); B.status(e, "burn", 4, u.s.abpwr * 0.25); B.impact(u, e); }); } }),
-    "Serpent Charmer": U("offense", "Poisoner", [100, 135, 12, 4, 0.9, 22, 70, 20, 10, 0.5],
-      { name: "Serpent Venom", desc: "Poisons every foe in range for ability power per second over 5s.", run: (B, u) => { const ts = B.enemiesNear(u.x, u.s.range + 30); if (!ts.length) return false; ts.forEach(t => { B.status(t, "poison", 5, u.s.abpwr); B.impact(u, t); }); } }),
-    "Bloodthirsty Warlord": U("offense", "Warlord", [165, 350, 22, 12, 0.9, 24, 24, 20, 14, 1],
-      { name: "Bloodlust", desc: "Passive: +8% damage per kill (max 10). Active: heals 25% and drinks 50% of damage dealt for 6s.", run: (B, u) => { B.heal(u, u.s.hp * 0.25); B.status(u, "lifesteal", 6, 0.5); B.impact(u, u); } },
+    "Beast Berserker": U("offense", "Bruiser", [80, 245, 25, 8, 1.1, 34, 22, 20, 10, 1],
+      { name: "Frenzy", desc: "+60% attack speed and +30% damage for 5s.", run: (B, u) => { B.buff(u, "atkspd", 1.6, 5); B.buff(u, "dmg", 1.3, 5); B.burst?.(u.x, 174, "#FF4500", 10, "sparks"); B.impact(u, u); } }),
+    "Warbeast Drummer": U("offense", "Rallier", [120, 185, 12, 8, 1.0, 22, 30, 0, 13, 1],
+      { name: "War Rhythm", desc: "Allies nearby attack 40% faster for 6s.", run: (B, u) => { B.burst?.(u.x, 178, "#FF4500", 14, "ring"); B.alliesNear(u.x, 140).forEach(a => { B.buff(a, "atkspd", 1.4, 6); B.impact(u, a); }); } }),
+    "Frenzied Alchemist": U("offense", "Brewer", [120, 150, 15, 5, 0.9, 22, 60, 25, 13, 0.5],
+      { name: "Battle Brew", desc: "Allies nearby gain +30% damage and ability power for 6s.", run: (B, u) => { B.burst?.(u.x, 174, "#ff9f1c", 12, "motes"); B.alliesNear(u.x, 120).forEach(a => { B.buff(a, "dmg", 1.3, 6); B.buff(a, "abpwr", 1.3, 6); B.impact(u, a); }); } }),
+    "Shadowstalker": U("offense", "Assassin", [140, 135, 32, 5, 1.0, 40, 22, 42, 11, 0.5],
+      { name: "Silent Death", desc: "Steps through shadow to the weakest foe in sight with a shadow barrier (1.5x ability power): deals 4x ability power, or executes below 25% life.", run: (B, u) => { const t = B.weakestEnemy(u, 240); if (!t) return false; const x0 = u.x; u.x = t.x - 14 * u.dir; B.shield(u, u.s.abpwr * 1.5); B.slash?.(x0, t.x, "#ff3b3b"); if (t.hp < t.s.hp * 0.25) B.hit(u, t, t.hp + 999, true); else B.hit(u, t, u.s.abpwr * 4); B.impact(u, t); } }),
+    "Fire Spiritmaster": U("offense", "Caster", [160, 140, 18, 4, 0.8, 18, 90, 32, 11, 0.5],
+      { name: "Pyroclasm", desc: "Erupts the ground under the nearest foe: 2.5x ability power in an area plus burning.", run: (B, u) => { const t = B.nearestEnemy(u, u.s.range + 40); if (!t) return false; B.burst?.(t.x, 184, "#ff6a1a", 18, "pillar"); B.enemiesNear(t.x, 55).forEach(e => { B.hit(u, e, u.s.abpwr * 2.5); B.status(e, "burn", 4, u.s.abpwr * 0.25); B.impact(u, e); }); } }),
+    "Serpent Charmer": U("offense", "Poisoner", [100, 155, 14, 6, 0.9, 22, 70, 22, 10, 0.5],
+      { name: "Serpent Venom", desc: "Poisons every foe in range for ability power per second over 5s.", run: (B, u) => { const ts = B.enemiesNear(u.x, u.s.range + 30); if (!ts.length) return false; B.burst?.(u.x + 28 * u.dir, 178, "#78ff3c", 14, "motes"); ts.forEach(t => { B.status(t, "poison", 5, u.s.abpwr); B.impact(u, t); }); } }),
+    "Bloodthirsty Warlord": U("offense", "Warlord", [165, 380, 24, 14, 0.9, 24, 24, 20, 14, 1.5],
+      { name: "Bloodlust", desc: "Passive: +8% damage per kill (max 10). Active: heals 25% and drinks 50% of damage dealt for 6s.", run: (B, u) => { B.heal(u, u.s.hp * 0.25); B.status(u, "lifesteal", 6, 0.5); B.burst?.(u.x, 174, "#dc141e", 12, "sparks"); B.impact(u, u); } },
       { passive: { killStack: 0.08 } }),
-    "Battle Mage": U("offense", "Caster", [150, 135, 14, 4, 0.8, 20, 100, 35, 12, 0.3],
-      { name: "Arcane Volley", desc: "Four arcane bolts strike random foes in range for 2.5x ability power each.", run: (B, u) => { const ts = B.enemiesNear(u.x, u.s.range + 40); if (!ts.length) return false; for (let i = 0; i < 4; i++) { const t = ts[B.rnd(ts.length)]; B.hit(u, t, u.s.abpwr * 2.5); B.impact(u, t); } } }),
-    "Thunderhoof Juggernaut": U("offense", "Juggernaut", [170, 480, 26, 16, 0.75, 26, 24, 25, 12, 2],
-      { name: "Thunder Charge", desc: "Charges forward, knocking back and stunning foes in its path for 1.5s.", run: (B, u) => { u.x = Math.max(34 + 18, Math.min(446 - 22, u.x + 50 * u.dir)); const ts = B.enemiesNear(u.x, 50); ts.forEach(t => { B.hit(u, t, u.s.abpwr * 2); B.knock(t, 50 * u.dir); B.status(t, "stun", 1.5); B.impact(u, t); }); } }),
-    "Skytalon Raider": U("offense", "Raider", [115, 155, 18, 4, 1.2, 44, 22, 20, 10, 0.5],
-      { name: "Swoop", desc: "Flies over the front line to strike the rearmost foe for 3x ability power.", run: (B, u) => { const t = B.rearmostEnemy(u, 260); if (!t) return false; B.hit(u, t, u.s.abpwr * 3); B.impact(u, t); } }),
+    "Battle Mage": U("offense", "Caster", [150, 150, 16, 5, 0.8, 20, 100, 38, 11, 0.5],
+      { name: "Arcane Volley", desc: "Four arcane bolts strike random foes in range for 2.5x ability power each.", run: (B, u) => { const ts = B.enemiesNear(u.x, u.s.range + 40); if (!ts.length) return false; for (let i = 0; i < 4; i++) { const t = ts[B.rnd(ts.length)]; B.beam?.(u.x, 162 + u.yOff - i * 3, t.x, 174 + t.yOff, "#ff6a1a", "arcane"); B.hit(u, t, u.s.abpwr * 2.5); B.impact(u, t); } } }),
+    "Thunderhoof Juggernaut": U("offense", "Juggernaut", [170, 500, 28, 18, 0.75, 26, 24, 25, 11, 2],
+      { name: "Thunder Charge", desc: "Charges forward, knocking back and stunning foes in its path for 1.5s.", run: (B, u) => { const x0 = u.x; u.x = Math.max(34 + 18, Math.min(446 - 22, u.x + 50 * u.dir)); B.slash?.(x0, u.x, "#ff9f1c"); B.burst?.(u.x, 186, "#ff9f1c", 14, "ring"); const ts = B.enemiesNear(u.x, 50); ts.forEach(t => { B.hit(u, t, u.s.abpwr * 2); B.knock(t, 50 * u.dir); B.status(t, "stun", 1.5); B.impact(u, t); }); } }),
+    "Skytalon Raider": U("offense", "Raider", [115, 195, 22, 7, 1.2, 44, 24, 26, 10, 1],
+      { name: "Swoop", desc: "Flies over the front line to strike the rearmost foe for 3x ability power.", run: (B, u) => { const t = B.rearmostEnemy(u, 260); if (!t) return false; B.slash?.(u.x, t.x, "#ffd76a", true); B.hit(u, t, u.s.abpwr * 3); B.impact(u, t); } }),
   };
 
   // Enemies — the ruling class and its beasts.
@@ -279,8 +284,8 @@
   // `sfx` names a BC.sfx cue, `music` brings the menu theme in under the scene,
   // `card` shows the three-tribe title card.
   const INTRO = [
-    { at: 0, dur: 4, voice: "Collectors came at the end of the harvest.", text: "The leader's *tax collectors* came at the end of the harvest." },
-    { at: 4, dur: 4, voice: "They drowned the ones who could not pay.", text: "They drowned the ones who could not pay — your *expecting wife* among them." },
+    { at: 0, dur: 4, voice: "Collectors came at the end of the harvest.", text: "The crown's *tax collectors* came at the end of the harvest." },
+    { at: 4, dur: 4, voice: "They drowned the ones who could not pay.", text: "They drowned the ones who could not pay, your *expecting wife* among them." },
     { at: 8, dur: 4, sfx: "thunder", voice: "The river kept everything.", text: "You buried *nothing*. The river kept *everything*." },
     { at: 12, dur: 4.5, sfx: "drums", music: true, voice: "Now the tribes gather.", text: "Now the tribes *gather* behind you: village by village, town by town, city by city." },
     { at: 16.5, dur: 4.5, voice: "The common folk against the crown.", text: "The common folk against the crown, and the *Collector King* who wears it." },

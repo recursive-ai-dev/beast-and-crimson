@@ -1,6 +1,6 @@
 {
   "name": "beast-and-crimson",
-  "version": "0.10.7",
+  "version": "0.11.0",
   "description": "An offline dark fantasy lane battler. The game itself has no dependencies; these are development tools only.",
   "author": {
     "name": "recursive-ai-dev",
@@ -32,13 +32,24 @@
     "files": [
       "index.html",
       "style.css",
+      "manifest.webmanifest",
+      "sw.js",
       "src/**/*",
       "assets/**/*",
       "electron/**/*"
     ],
+    "asarUnpack": [
+      "assets/music/**/*",
+      "assets/voice/**/*"
+    ],
     "linux": {
       "icon": "assets/art/crest.png",
       "category": "Game",
+      "executableArgs": [
+        "--no-sandbox",
+        "--autoplay-policy=no-user-gesture-required",
+        "--disable-features=AudioServiceSandbox"
+      ],
       "target": [
         "AppImage",
         "deb",
@@ -46,7 +57,12 @@
       ]
     },
     "deb": {
-      "packageName": "beast-and-crimson"
+      "packageName": "beast-and-crimson",
+      "recommends": [
+        "libappindicator3-1",
+        "libpulse0",
+        "libasound2t64 | libasound2"
+      ]
     },
     "rpm": {
       "packageName": "beast-and-crimson"

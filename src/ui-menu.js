@@ -27,8 +27,8 @@
         },
         ondblclick: () => show("campaign", true),
         onpointermove: (e) => { const r = e.currentTarget.getBoundingClientRect(); e.currentTarget.style.setProperty("--tilt", ((e.clientX - r.left) / r.width - 0.5) * 14 + "deg"); } },
-        h("div", { class: "sigil" }, h("img", { class: "px", src: BC.iconURL("bases:" + id, 0, 96) })),
-        h("h3", {}, t.name),
+        h("div", { class: "sigil" }, h("img", { class: "px", alt: "", src: BC.iconURL("bases:" + id, 0, 96) })),
+        h("h2", {}, t.name),
         h("span", { class: "tribe-role" }, TRIBE_ROLE[id]),
         h("div", { class: "word" }, `${t.word} ${t.pron}`),
         h("div", { class: "runes" }, INSCRIPTION[id]),
@@ -47,6 +47,11 @@
     }
     start.onclick = () => show("campaign", true);
     $("#menu .gear").onclick = BC.UI.openSettings;
+    const crest = $("#menu .crest");
+    if (crest && !crest.dataset.bound) {
+      crest.dataset.bound = "1";
+      crest.addEventListener("error", () => crest.remove(), { once: true });
+    }
 
     // Title reveal after the story: camera push, crest ignites, letters strike, slabs rise.
     const root = $("#menu"), title = $("#menu .title");

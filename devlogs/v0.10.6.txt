@@ -1,0 +1,31 @@
+Beast and Crimson — v0.10.6 Devlog
+
+Date: 2026-11-25
+
+---
+
+Voice Lines for All 30 Warriors
+
+Every playable warrior across Bloodfang, Guardvaw, and Goldclaw now has two unique deployment voice clips (60 clips total) wired into the battle audio system. Deploying a unit alternates between its lines, cuts off any previous overlapping voice, respects your Effects/Master volume settings, and stops cleanly on pause, retreat, or tab switch.
+
+---
+
+Clearer Reward & Runic Burn Equipping
+
+Earning new Runic Burns and warriors is now much easier to act on between battles:
+
+- Post-battle Runic Burn and achievement cards now include a direct "Equip in Warband" button that jumps straight to an unequipped lineup warrior, resets any active stat filter, and scrolls to highlight the new burn.
+
+- The Campaign screen's Warband button shows a badge when you have unbound Runic Burns ready for your active lineup or newly unlocked warriors.
+
+- The 5-slot Battle Lineup strip in the Warband now displays burn dots (and empty dashed rings for unequipped slots) so you can see at a glance who still needs a Runic Burn.
+
+---
+
+UI & Visual Polish
+
+- Fixed a styling issue on the stage briefing popup where the artwork's bottom border cut across the stage title like a strikethrough.
+
+- Recent 0.10.x polish also includes non-intrusive hover/focus tooltips across the HUD and Warband stats, foreground lane lamp posts with warm glow, stronghold hit-flash improvements, and a rebalanced enemy opening vanguard and per-stage pace curve.
+
+Available on itch.io (Web HTML5 + Linux AppImage) and GitHub Releases (.AppImage, .deb, .rpm).

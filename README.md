@@ -11,18 +11,18 @@ polished, shareable release.
 - **3 tribes**: Bloodfang (Offense, *Mixio*), Guardvaw (Defense, *Spuea*) and Goldclaw (Greed, *Pasea*), each with its own passive, active Totem Spell (*Blood Sacrifice*, *Spuea Bulwark*, *Royal Bribe*), palette and menu scene.
 - **30 units**: the ones from *BC Attack Sprites*, each with a unique ability. Tap a unit when its rune circle glows, press **Q/W/E/A/S** (or **F**), or turn on auto-cast in Settings or Pause.
 - **10 stages** across ten dark-fantasy biomes with stage hazards (*Crimson Canopy*, *Volcanic Fissures*, *Clinging Mire*, *Inward Tide*, *Keep Ballista*, *Black Blizzard*, *Bone-Sand Gale*) and mid-boss champions (*The Drowned Warden*, *Foundry Colossus*). Each first clear unlocks a new warrior, up to all 10 per tribe.
-- **Endless Mode ("The Endless Levy") & Crown's Ledger**: survive infinite scaling waves across shifting biomes to earn Runic Burns and track your best wave per tribe, or inspect enemy stats, traits and kill tallies in the Ledger.
+- **Endless Mode ("The Endless Levy"), Honours & Crown's Ledger**: survive infinite scaling waves across shifting biomes to earn Runic Burns and **Crimson Ash**, track your best wave per tribe, review **Honours** (achievement goals and Cosmic Brand rewards) directly from the Campaign overview, or inspect enemy stats, traits and kill tallies in the Ledger.
 - **Runic Burns & Forging**: 7 tiers, from Initiate's Seal to Cosmic Brand. Each burn gives one buff and one debuff, using the percentage ranges from the doc. Combine 3 burns of the same tier into the next tier, salvage unwanted burns into **Crimson Ash**, and spend Ash to reroll a burn's stats. Equip one per unit in the Warband screen, plus up to 1 **Cross-Tribe Mercenary** in your 5-unit lineup. Cosmic Brands never drop at random. Four **achievements** award top-tier burns: Regicide and Beast and Crimson give a Cosmic Brand, The Great Tithe a Legendary Relic, and Untouched Totem an Elder's Rune.
 - **Warband**: two display scenes per tribe (fire circle or sacrificial altar, grove platform or riverside stone, gold pile or treasure chest), and each unit's lore on an ancient scroll.
 - **First-battle guide**: learn deployment, manual ability casts and your Totem spell as you play, then bind a Runic Burn in the Warband. Skip at any time or replay from Settings. The guide temporarily uses manual casting and restores your auto-cast preference afterward.
 - **Prepare after victory**: add a newly unlocked warrior directly from its reward card, fill empty slots with unlocked warriors from your tribe, or open Manage Warband and return to the same results. New warriors are marked until inspected or added; a full lineup is never replaced automatically.
-- **Atmosphere**: each tribe has its own menu scene and campaign map, plus synthesized ambient sound. Menu and battle soundtracks loop and crossfade as you enter and leave combat. The menu reads the tribe's warning aloud in a low narrator voice (the Web Speech API). Settings and Pause buttons are styled per tribe: molten for Bloodfang, branch and river stone for Guardvaw, gold bars for Goldclaw.
+- **Atmosphere & combat spectacle**: each tribe has its own menu scene and campaign map, plus synthesized ambient sound and dynamic Web Audio peak limiting. Menu and battle soundtracks loop and crossfade as you enter and leave combat. Warriors march with stone-totem hops, melee lunges, shield wards, bespoke ability bursts/beams/slashes, dynamic biome hazard weather, champion/Collector King health banners, and crumbling stronghold destruction.
 - The screens are the ones the docs describe: loading (rotating emblem, claw progress bar, tips), cut scene (cinematic bars, subtitles, skip rune), main menu (stone slabs, pulsing start shield), campaign map, unit customization, HUD, retreated/result screen and the rune-curtain transition.
-- **Campaign and lineup overview**: jump to your next chapter, see conquered keeps and your Endless record, and inspect the five deployment slots above your roster. Unit stats use full labels; the Ledger includes enemy lore directly on each card.
-- **Keyboard, touch and motion preferences**: tribe and stage cards are keyboard accessible, dialogs keep focus inside and restore it when closed, and Escape cancels a confirmation. Menus, inventory and battles support portrait phones as well as landscape. Settings include a controls reference and reduced motion that follows your device by default.
-- **Battle clarity**: each biome's painting forms the battlefield backdrop, deployment slots show warrior names where space permits, and the HUD includes a timer and casting mode. Crowded fights merge nearby damage/heal numbers and cap active floating text for readability. Switching away from the tab or window pauses the battle and stops ambience; returning waits for you to resume.
+- **Campaign and lineup overview**: jump to your next chapter, preview stage first-clear warrior unlocks and spoils, review conquered keeps, Honours, and your Endless record, and inspect the five deployment slots above your roster. Unit stats use full labels; the Ledger includes enemy lore directly on each card.
+- **Keyboard, touch, screen reader & motion preferences**: tribe and stage cards are keyboard accessible, dialogs keep focus inside and restore it when closed, and Escape cancels a confirmation. Menus, inventory and battles support portrait phones as well as landscape, with semantic landmarks, sequential headings, and dirty-checked HUD updates. Settings include a controls reference and reduced motion that follows your device by default.
+- **Battle clarity**: each biome's painting forms the battlefield backdrop, deployment slots show warrior names where space permits, and the HUD includes a timer and casting mode. Crowded fights merge nearby damage/heal numbers and cap active floating text and particles for readability. Switching away from the tab or window pauses the battle and stops ambience; returning waits for you to resume.
 - **Safer forging & burn comparison**: only unbound burns can be forged. Hovering or focusing a burn previews its before-and-after stat changes on the selected warrior and flags unused buff stats. Forging offers every eligible tier, consumes the three weakest unbound rolls, and names them in the confirmation; salvaging an equipped burn warns before destroying it. Filter and sort preferences persist in your save.
-- **Offline & portable saves**: no dependencies required. Progress is saved in `localStorage`, and Settings lets you **Export save** and **Import save** as a versioned JSON file (invalid or newer-version imports leave current progress untouched). Partial saves are validated and repaired without discarding valid progress. The menu and Settings report when the browser cannot save.
+- **Offline, installable & portable saves**: no runtime dependencies required. Hosted web builds include a web app manifest (`manifest.webmanifest`) and offline service worker (`sw.js`), while `file://` and Electron builds run completely offline from disk. Progress is saved in `localStorage`, and Settings lets you **Export save** and **Import save** as a versioned JSON file (invalid or newer-version imports leave current progress untouched). Partial saves are validated and repaired without discarding valid progress.
 
 ## Play
 
@@ -112,24 +112,26 @@ python3 tools/gen_art.py                 # fetch whatever is missing
 python3 tools/gen_art.py --force stage-03  # redo one
 ```
 
-Fonts are bundled, Latin-subset OFL faces in `assets/fonts/`: Cinzel Decorative for the
-title, Cinzel for headings and EB Garamond for body text.
+Fonts are bundled, Latin-subset OFL faces in `assets/fonts/` (compressed `.woff` with `.ttf` fallbacks):
+Cinzel Decorative for the title, Cinzel for headings and EB Garamond for body text.
 
 ## Code
 
 ```
-index.html  style.css
+index.html  style.css  manifest.webmanifest  sw.js
 src/data.js         tribes, units + abilities, enemies, stages, runic burns, TUNE (balance knobs)
-src/core.js         save data, export/import, burn rolls, stat assembly, asset loader, WebAudio synth sfx
-src/audio.js        shared audio mixer, streamed soundtrack, fades and audio lifecycle
-src/battle.js       lane simulation + canvas renderer (480×270, pixel-scaled)
+src/core.js         save data, export/import, pure battle rewards, burn rolls, asset loader, WebAudio synth sfx
+src/audio.js        shared audio mixer, peak limiters, streamed soundtrack, unit voices, fades and lifecycle
+src/battle.js       60 Hz deterministic lane simulation + pixel-art VFX & weather renderer (480×270)
 src/intro.js        intro timeline & subtitle parser
-src/intro-scene.js  illustrated intro scene renderer
+src/intro-scene.js  illustrated parallax intro scene renderer
 src/errors.js       global error boundary with save download
 src/ui.js           shared UI helpers, dialog focus trap, screen router, tooltips
 src/ui-*.js         per-screen UI modules (intro, menu, campaign, warband, battle, settings)
-tools/              sim.js, check_battle.cjs, check_lifecycle.cjs, check_intro_timeline.cjs,
-                    check_browser.cjs, check_clarity.cjs, check_audio.cjs, optimize_art.py, build_release.sh
+tools/              sim.js, balance.cjs, headless.cjs, check_battle.cjs, check_lifecycle.cjs,
+                    check_intro_timeline.cjs, check_browser.cjs, check_clarity.cjs, check_audio.cjs,
+                    check_flows.cjs, build_woff.cjs, optimize_art.py, build_inline_sprites.py,
+                    build_release.sh, build_itch.sh, push_itch.sh
 ```
 
 Run the unit & simulation suite with `npm run test:unit` (or `npm test` to include browser checks).
@@ -169,7 +171,7 @@ Warband scrolling, and hazard/boss notices. It checks tooltip and notice placeme
 at 1280×720, 844×390, 568×320, 390×844, and 320×568.
 
 Balance: enemies spawn from a *threat budget* (`TUNE.threat*`). Each foe costs its
-bounty, so tougher foes come less often. The numbers were tuned with a headless
-bot that deploys at random with auto-cast on and no Runic Burns. It usually clears
-stages 1–9; Bloodfang can struggle in the later stages. Stage 10 is the wall:
-Goldclaw wins it reliably, Guardvaw sometimes, and Bloodfang needs burns.
+bounty, so tougher foes come less often. Balance across early, late-roster, mercenary,
+and Runic Burn scenarios is measured with `node tools/balance.cjs` and `node tools/sim.js --runs 3`:
+stages 1–9 clear reliably across all three tribes, while Stage 10's Collector King rewards
+assembled lineups, mercenaries, and Runic Burns without collapsing each tribe's distinct tempo.

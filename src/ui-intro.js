@@ -77,23 +77,30 @@
       state.introRecap = away;
       setTimeout(() => show(S().seenIntro && !away ? "menu" : "intro", true), 350);
     };
-    Promise.all([BC.loadAssets((p) => { real = p; }), S().seenIntro && !away ? null : BC.loadIntroArt()]).then(() => { loaded = true; real = 1; }).catch((err) => {
+    Promise.all([BC.loadAssets((p) => { real = p; }), S().seenIntro && !away ? null : BC.loadIntroArt()]).then(() => {
+      loaded = true; real = 1;
+      if (BC.assetWarnings?.length) stageText.dataset.warn = `${BC.assetWarnings.length} sprite(s) unavailable, using fallbacks`;
+    }).catch((err) => {
       failed = true;
       cancelAnimationFrame(raf);
       clearInterval(tipTimer);
-      tip.textContent = String(err.message || err);
+      stageText.textContent = "Loading halted";
+      tip.textContent = "Could not load game assets: " + String(err.message || err);
     });
     raf = requestAnimationFrame(frame);
   }
 
   SCREENS.intro = () => {
     const cv = $("#intro-canvas"), g = cv.getContext("2d");
-    const sub = $("#intro .subtitle");
+    const sub = $("#intro .subtitle"), pipsEl = $("#intro .intro-pips");
     let raf, last = performance.now(), finished = false;
     BC.loadIntroArt();
     const scene = BC.IntroScene.create({ makeCanvas: (w, h) => Object.assign(document.createElement("canvas"), { width: w, height: h }) });
     const finish = () => { if (finished) return; finished = true; S().seenIntro = true; BC.persist(); state.menuReveal = true; show("menu", true, { required: true }); };
     const recap = state.introRecap; state.introRecap = false;
+    const beatsList = recap ? BC.INTRO_RECAP : BC.INTRO;
+    const pipNodes = beatsList.map(() => h("i", {}));
+    if (pipsEl) pipsEl.replaceChildren(...pipNodes);
 
     // The three tribes, named: shown on the title-card beat.
     const card = $("#intro .title-card"), tribesEl = $(".tc-tribes", card);
@@ -134,12 +141,13 @@
       while (shown < count) chars[shown++].classList.add("on");
     };
 
-    const tl = BC.createTimeline(recap ? BC.INTRO_RECAP : BC.INTRO, {
-      onBeat: (beat) => {
+    const tl = BC.createTimeline(beatsList, {
+      onBeat: (beat, idx) => {
         buildSubtitle(beat.text);
         // Type for at most ~65% of the beat so the line can be read before it fades.
         typingFor = Math.max(0.5, Math.min(beat.dur * 0.65 - TYPE_DELAY, chars.length / TYPE_RATE));
         card.classList.toggle("show", !!beat.card);
+        pipNodes.forEach((p, k) => { p.classList.toggle("on", k === idx); p.classList.toggle("past", k < idx); });
         spoken = false; held = 0;
         if (beat.sfx) BC.sfx[beat.sfx]?.();
         if (beat.music) BC.audio.cueMusic(true);

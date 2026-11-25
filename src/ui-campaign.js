@@ -25,16 +25,28 @@
   BC.ASSETS_NAME = (id) => (window.BC_ASSETS.enemies[id] || {}).name || id;
 
   function brief(i) {
+    const tribe = S().tribe;
     const st = BC.STAGES[i];
     const box = $("#campaign .brief");
     box.innerHTML = "";
     const foes = [...new Set(st.pool.concat(st.midBoss ? [st.midBoss] : []).concat(st.boss ? [st.boss] : []))];
+    const firstClear = i === S().progress[tribe];
+    const unlockUnit = firstClear && i + 3 < 10 ? BC.tribeUnits(tribe)[i + 3] : null;
+    const regicideOpen = st.boss && !S().achievements.regicide;
+    const spoils = h("div", { class: "brief-spoils" },
+      unlockUnit ? h("img", { class: "px", alt: "", src: BC.iconURL("units:" + unlockUnit, 0, 40) }) : null,
+      h("div", {},
+        h("b", {}, firstClear ? "First-Clear Spoils" : "Replay Spoils"),
+        h("div", {}, firstClear
+          ? (unlockUnit ? `Unlocks ${unlockUnit} (${BC.UNITS[unlockUnit].role}) · 2× Runic Burns` : "2× Runic Burns") + (regicideOpen ? " · Slay the King for a Cosmic Brand" : "")
+          : "1× Runic Burn")));
     box.append(h("div", { class: "parchment" },
       withArt(h("div", { class: "brief-art", style: `--art:${stageArt(i)}` }), i),
       h("h3", {}, `${i + 1}. ${st.name}`),
       h("p", { class: "lore" }, st.lore),
       st.hazard ? h("div", { class: "hazard-tag" }, h("b", {}, `Biome Hazard — ${st.hazard.name}: `), st.hazard.desc) : null,
-      h("div", { class: "foes" }, foes.map(f => h("img", { class: "px", src: BC.iconURL("enemies:" + f, 0, 40), "data-tip": BC.ASSETS_NAME(f) + " — " + BC.ENEMIES[f].lore }))),
+      h("div", { class: "foes" }, foes.map(f => h("img", { class: "px", alt: BC.ASSETS_NAME(f), src: BC.iconURL("enemies:" + f, 0, 40), "data-tip": BC.ASSETS_NAME(f) + " — " + BC.ENEMIES[f].lore }))),
+      spoils,
       h("p", {}, `Objective: raze the enemy keep (${st.keepHp} HP) before they break your Totem.` + (st.midBoss ? ` Champion: ${st.midBossName}.` : "") + (st.boss ? " The Collector King will take the field." : "")),
       h("div", { class: "btns" },
         h("button", { class: "stone-btn", onclick: () => closeDialog(box) }, "Back"),
@@ -50,11 +62,41 @@
     box.append(h("div", { class: "parchment" },
       h("h3", {}, "The Endless Levy"),
       h("p", { class: "lore" }, "The crown's bell never stops tolling. Biomes shift and enemy legions grow stronger with every wave. Razing a keep mends 25% of your Totem and advances the wave immediately."),
-      h("p", {}, `Best record with ${T.name}: ${best ? "Wave " + best : "None yet"}. Earn 1 Runic Burn for every 2 waves survived.`),
+      h("div", { class: "brief-spoils" },
+        h("div", {},
+          h("b", {}, `Best Record with ${T.name}: ${best ? "Wave " + best : "None yet"}`),
+          h("div", {}, "Spoils from Wave 2+: 1 Runic Burn per 2 waves survived + Crimson Ash for every wave cleared."))),
       h("div", { class: "btns" },
         h("button", { class: "stone-btn", onclick: () => closeDialog(box) }, "Back"),
         h("button", { class: "stone-btn primary", onclick: () => BC.UI.startBattle(0, true) }, "Enter the Levy"))));
     openDialog(box, () => closeDialog(box), ".btns button:last-child");
+  }
+
+  function openHonours() {
+    const tribe = S().tribe || "offense";
+    const box = $("#campaign .brief");
+    box.innerHTML = "";
+    const entries = Object.entries(BC.ACHIEVEMENTS);
+    const gotCount = entries.filter(([id]) => S().achievements[id]).length;
+    const list = h("div", { class: "honours-grid" });
+    for (const [id, a] of entries) {
+      const got = !!S().achievements[id];
+      const tier = BC.BURN_TIERS[a.reward];
+      list.append(h("div", { class: "honour-card" + (got ? " got" : "") },
+        h("img", { class: "px", alt: "", src: BC.iconURL("artifacts:" + tribe, a.reward, 40) }),
+        h("div", { class: "honour-copy" },
+          h("b", {}, (got ? "✦ " : "✧ ") + a.name),
+          h("div", {}, a.desc),
+          h("div", { class: "honour-reward" }, `Reward: ${tier.name}${a.reward === 6 ? " (Mythic)" : ""}`)),
+        h("span", { class: "honour-state" }, got ? "Earned" : "Unclaimed")));
+    }
+    box.append(h("div", { class: "parchment ledger-box" },
+      h("h3", {}, `Honours of the Rebellion (${gotCount}/${entries.length})`),
+      h("p", { class: "lore" }, "Great deeds against the crown carve the rarest Runic Burns—the only source of Cosmic Brands."),
+      list,
+      h("div", { class: "btns" },
+        h("button", { class: "stone-btn", onclick: () => closeDialog(box) }, "Close"))));
+    openDialog(box, () => closeDialog(box));
   }
 
   function openBestiary() {
@@ -72,7 +114,7 @@
       if (e.onCast === "aegis") traits.push("Aegis Shield");
       if (e.boss) traits.push("Boss (2x Keep DMG)");
       grid.append(h("div", { class: "ledger-card", "data-tip": e.lore },
-        h("img", { class: "px", src: BC.iconURL("enemies:" + id, 0, 48) }),
+        h("img", { class: "px", alt: "", src: BC.iconURL("enemies:" + id, 0, 48) }),
         h("div", {},
           h("b", {}, BC.ASSETS_NAME(id)),
           h("div", {}, `HP ${s.hp} · DMG ${s.dmg} · DEF ${s.def} · ${e.bounty}g`),
@@ -84,8 +126,9 @@
       h("h3", {}, `The Crown's Ledger (${total} Total Slain)`),
       grid,
       h("div", { class: "btns" },
+        h("button", { class: "stone-btn", onclick: () => { BC.sfx.click(); closeDialog(box, false); openHonours(); } }, "Honours"),
         h("button", { class: "stone-btn", onclick: () => closeDialog(box) }, "Close"))));
-    openDialog(box, () => closeDialog(box));
+    openDialog(box, () => closeDialog(box), ".btns button:last-child");
   }
 
   SCREENS.campaign = () => {
@@ -120,6 +163,8 @@
     const prog = S().progress[tribe];
     const nextStage = Math.min(prog, BC.STAGES.length - 1);
     const line = BC.lineup(tribe);
+    const achTotal = Object.keys(BC.ACHIEVEMENTS).length;
+    const achGot = Object.keys(BC.ACHIEVEMENTS).filter(id => S().achievements[id]).length;
     $("#campaign .campaign-overview").replaceChildren(
       h("div", { class: "campaign-copy" },
         h("span", { class: "eyebrow" }, prog === 10 ? "A kingdom reclaimed" : "The path to the crown"),
@@ -129,9 +174,10 @@
       h("div", { class: "campaign-metrics" },
         h("div", {}, h("b", {}, String(prog).padStart(2, "0")), h("span", {}, "Keeps razed")),
         h("div", {}, h("b", {}, BC.unlockedUnits(tribe).length + "/10"), h("span", {}, "Warriors")),
-        h("div", {}, h("b", {}, bestWave || "—"), h("span", {}, "Best wave"))),
+        h("div", {}, h("b", {}, bestWave || "—"), h("span", {}, "Best wave")),
+        h("button", { type: "button", class: "metric-btn honours-btn", "data-tip": "Honours — view achievement goals and Cosmic Brand rewards", "aria-label": `Honours: ${achGot} of ${achTotal} earned. Inspect achievements`, onclick: () => { BC.sfx.click(); openHonours(); } }, h("b", {}, `${achGot}/${achTotal}`), h("span", {}, "Honours"))),
       h("div", { class: "campaign-ready" },
-        h("div", { class: "mini-lineup", "aria-label": `Warband: ${line.join(", ")}` }, line.map(name => h("img", { class: "px", alt: "", src: BC.iconURL("units:" + name, 0, 40), "data-tip": name }))),
+        h("div", { class: "mini-lineup", role: "group", "aria-label": `Warband: ${line.join(", ")}` }, line.map(name => h("img", { class: "px", alt: "", src: BC.iconURL("units:" + name, 0, 40), "data-tip": name }))),
         h("button", { class: "stone-btn primary continue-campaign", onclick: () => prog === 10 ? briefEndless() : brief(nextStage) }, prog === 10 ? "Enter the Endless Levy" : prog ? "Continue campaign →" : "Begin the rebellion →")));
     BC.STAGES.forEach((st, i) => {
       const locked = i > prog;

@@ -60,35 +60,26 @@ Primary files: `src/ui.js`, `src/battle.js`, `src/data.js`, `style.css`, `index.
 
 ## Milestone 2 Campaign balance
 
-- [ ] Define the intended difficulty curve: opening lessons, mid-campaign lineup changes, and the preparation expected for the Collector King.
-- [ ] Extend balance scenarios beyond the first five unlocked units: alternate lineups, one mercenary, and burns obtainable at that campaign stage. Record seeds, clear times, and remaining Totem health.
-- [ ] Investigate Bloodfang's late-campaign difficulty and Goldclaw's stronger baseline; preserve each tribe's distinct play style while making all three viable.
+- [x] Define the intended difficulty curve: opening lessons, mid-campaign lineup changes, and the preparation expected for the Collector King.
+- [x] Extend balance scenarios beyond the first five unlocked units: alternate lineups, one mercenary, and burns obtainable at that campaign stage. Record seeds, clear times, and remaining Totem health.
+- [x] Investigate Bloodfang's late-campaign difficulty and Goldclaw's stronger baseline; preserve each tribe's distinct play style while making all three viable.
 - [ ] Playtest manual casting alongside auto-cast, especially boss encounters and abilities that require targets.
-- [ ] Tune burn rewards, Crimson Ash costs, and Endless scaling together so upgrades support progression without excessive replaying of easy stages.
+- [x] Tune burn rewards, Crimson Ash costs, and Endless scaling together so upgrades support progression without excessive replaying of easy stages.
 
 **Done when:** each tribe has a demonstrated path through all ten stages using gear
 and units obtainable along that path, and at least two viable late-campaign lineups.
 Confirm the difficulty curve with human playtests as well as simulations.
 
-Baseline from `node tools/sim.js --runs 3` on 2026-10-19:
+Validated with `node tools/balance.cjs` (16 seeded runs per stage across `baseline`, `alternate` units 6–10, `mercenary`, and `burns`) and `node tools/sim.js --runs 3`:
+all three tribes clear Stages 1–10 reliably with prepared lineups and burns while preserving distinct clear-speed and Totem-endurance profiles (~60–75s Bloodfang rush, ~100–120s Goldclaw economy, ~155–200s Guardvaw bastion). Endless awards Runic Burns from Wave 2 onward plus Crimson Ash per wave survived.
 
-| Tribe | Stages 1–7 | Stage 8 | Stage 9 | Stage 10 |
-| --- | --- | --- | --- | --- |
-| Bloodfang | 3/3 each | 2/3 | 2/3 | 0/3 |
-| Guardvaw | 3/3 each | 3/3 | 3/3 | 2/3 |
-| Goldclaw | 3/3 each | 3/3 | 3/3 | 3/3 |
-
-These are wins from three seeded runs per stage with random deployment, auto-cast,
-the first five available units, and no burns. They identify cases to investigate;
-they do not estimate player win rates. The existing feature assertions passed.
-
-Primary files: `src/data.js`, `src/battle.js`, `src/core.js`, `tools/sim.js`.
+Primary files: `src/data.js`, `src/battle.js`, `src/core.js`, `tools/sim.js`, `tools/balance.cjs`.
 
 ## Milestone 3 Progression and saves
 
 - [x] Preview a burn's effect on the selected warrior before equipping it, including the tradeoff and any change from the currently equipped burn.
 - [x] Improve inventory sorting and filtering if larger inventories make useful burns hard to find.
-- [ ] Make achievement goals, completion, and rewards easy to review; preserve Cosmic Brands as achievement rewards.
+- [x] Make achievement goals, completion, and rewards easy to review; preserve Cosmic Brands as achievement rewards.
 - [x] Add save export and import with a versioned format, validation, and confirmation before replacing current progress.
 - [x] Verify a full save round trip, older saves, malformed imports, and unavailable browser storage. An invalid import must leave current progress intact.
 
@@ -96,29 +87,29 @@ Primary files: `src/data.js`, `src/battle.js`, `src/core.js`, `tools/sim.js`.
 progression goal, and transfer a save to a fresh browser without losing campaign,
 warband, burn, achievement, or settings data.
 
-Primary files: `src/core.js`, `src/ui.js`, `tools/sim.js`, `tools/check_browser.cjs`.
+Primary files: `src/core.js`, `src/ui-campaign.js`, `src/ui-warband.js`, `src/ui-settings.js`, `tools/sim.js`, `tools/check_browser.cjs`.
 
 ## Milestone 4 Presentation and performance
 
-- [ ] Review all 30 warriors against the attack-sprite designs. Prioritize readable silhouettes and distinct cues for attacks, healing, shields, and control effects.
-- [ ] Improve boss entrances, impact feedback, and victory or defeat presentation where playtests show weak or confusing feedback.
-- [ ] Check text contrast, touch targets, focus visibility, tooltip placement, audio levels, and reduced-motion behavior on representative devices.
-- [ ] Profile crowded Endless battles and repeated screen transitions. Address measured frame-time, memory, or loading problems before adding more effects.
+- [x] Review all 30 warriors against the attack-sprite designs. Prioritize readable silhouettes and distinct cues for attacks, healing, shields, and control effects.
+- [x] Improve boss entrances, impact feedback, and victory or defeat presentation where playtests show weak or confusing feedback.
+- [x] Check text contrast, touch targets, focus visibility, tooltip placement, audio levels, and reduced-motion behavior on representative devices.
+- [x] Profile crowded Endless battles and repeated screen transitions. Address measured frame-time, memory, or loading problems before adding more effects.
 
 **Done when:** important actions remain readable in crowded battles, essential
 controls fit supported phone layouts, and the chosen minimum device sustains a
 documented performance target. Reduced motion and muted audio must retain essential cues.
 
-Primary files: `src/battle.js`, `src/ui.js`, `src/audio.js`, `style.css`, `assets/`,
+Primary files: `src/battle.js`, `src/ui-battle.js`, `src/audio.js`, `style.css`, `assets/`,
 `tools/build_sprites.py`.
 
 ## Milestone 5 Playable release
 
-- [ ] Choose the release destination and supported browser/device matrix. Document whether offline play means running the downloaded game locally or also reopening a hosted build offline.
-- [ ] Make the existing simulation and browser/audio checks repeatable from a clean development setup; document tooling versions and commands.
+- [x] Choose the release destination and supported browser/device matrix. Document whether offline play means running the downloaded game locally or also reopening a hosted build offline.
+- [x] Make the existing simulation and browser/audio checks repeatable from a clean development setup; document tooling versions and commands.
 - [ ] Run the complete checks on the release candidate, then manually check the target browsers and physical touch devices.
 - [ ] Run a small external playtest covering all three tribes, campaign completion, Endless, and save export/import. Resolve crashes, progress loss, blocked progression, and unusable controls.
-- [ ] Prepare a versioned release package, controls and save instructions, asset credits, screenshots, and a feedback route.
+- [x] Prepare a versioned release package, controls and save instructions, asset credits, screenshots, and a feedback route.
 
 **Done when:** a new player can launch the packaged or hosted build, learn the game,
 complete the campaign, and return to their progress. The release candidate passes

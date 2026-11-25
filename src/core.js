@@ -219,7 +219,7 @@
   function rollTier(stage, rand) {
     rand = rand || Math.random;
     // higher stages shift the tier curve upward; Cosmic stays near-mythical
-    const r = rand() + stage * 0.05;
+    const r = rand() + stage * 0.055;
     const cuts = [0.45, 0.72, 0.9, 1.02, 1.12, 1.2];
     let t = 0;
     while (t < cuts.length && r > cuts[t]) t++;
@@ -307,20 +307,113 @@
     return true;
   }
 
+  /**
+   * Pure, once-only battle reward & achievement resolver.
+   * Mutates `outcome` with `.resolved = true` and `.rewards` so repeated calls (e.g. a second
+   * Retreat confirmation during a transition) can never grant duplicate spoils.
+   */
+  function resolveBattleRewards(outcome, opts = {}) {
+    if (!outcome || outcome.resolved) return outcome?.rewards || [];
+    outcome.resolved = true;
+    const tribe = opts.tribe || save.tribe;
+    const stageIdx = Number.isInteger(opts.stage) ? opts.stage : 0;
+    const endless = !!(opts.endless ?? outcome.endless);
+    const rand = opts.rand || Math.random;
+    outcome.endless = endless;
+    outcome.rewards = [];
+    const st = outcome.stats || {};
+    for (const [k, cnt] of Object.entries(st.killedByType || {})) {
+      if (Object.hasOwn(BC.ENEMIES, k) && cnt > 0) save.bestiary[k] = (save.bestiary[k] || 0) + cnt;
+    }
+    if (endless) {
+      const waves = st.waves || 1;
+      save.endless[tribe] = Math.max(save.endless[tribe] || 0, waves);
+      const burnCount = waves >= 2 ? Math.floor(waves / 2) : 0;
+      for (let i = 0; i < burnCount; i++) {
+        const b = makeBurn(rollTier(Math.min(9, waves), rand), rand);
+        save.burns.push(b);
+        outcome.rewards.push({ kind: "burn", burn: b });
+      }
+      const ashGain = waves >= 2 ? (waves - 1) * 2 : 0;
+      if (ashGain > 0) {
+        save.ash = (save.ash || 0) + ashGain;
+        outcome.rewards.push({ kind: "ash", amount: ashGain });
+      }
+    } else if (outcome.win) {
+      const firstClear = stageIdx === save.progress[tribe];
+      if (firstClear) {
+        save.progress[tribe] = Math.min(BC.STAGES.length, stageIdx + 1);
+        const newUnit = stageIdx + 3 < 10 ? tribeUnits(tribe)[stageIdx + 3] : null;
+        if (newUnit) {
+          if (!save.newUnits.includes(newUnit)) save.newUnits.push(newUnit);
+          outcome.rewards.push({ kind: "unit", name: newUnit });
+        }
+      }
+      const n = firstClear ? 2 : 1;
+      for (let i = 0; i < n; i++) {
+        const b = makeBurn(rollTier(stageIdx, rand), rand);
+        save.burns.push(b);
+        outcome.rewards.push({ kind: "burn", burn: b });
+      }
+    }
+    // Achievements — the only source of Cosmic Brands.
+    const done = save.achievements;
+    const earned = {
+      flawless: outcome.win && (st.baseDmg || 0) === 0,
+      regicide: !!st.bossKilled,
+      tithe: (st.goldEarned || 0) >= 3000,
+      tribes: ["offense", "defense", "greed"].every(k => save.progress[k] >= 10),
+    };
+    for (const [id, ok] of Object.entries(earned)) {
+      if (!ok || done[id]) continue;
+      done[id] = Date.now();
+      const b = makeBurn(BC.ACHIEVEMENTS[id].reward, rand);
+      save.burns.push(b);
+      outcome.rewards.push({ kind: "achievement", id, burn: b });
+    }
+    persist();
+    return outcome.rewards;
+  }
+
   // -------------------------------------------------------------- assets --
   const images = {};
+  const assetWarnings = [];
+  const ASSET_TIMEOUT_MS = 8000;
+  function loadImageWithRetry(src, timeoutMs = ASSET_TIMEOUT_MS, retries = 1) {
+    return new Promise(resolve => {
+      const attempt = (left) => {
+        const im = new Image();
+        let settled = false;
+        const done = (ok) => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timer);
+          im.onload = im.onerror = null;
+          if (!ok && left > 0) return attempt(left - 1);
+          resolve({ ok, im });
+        };
+        const timer = setTimeout(() => { im.src = ""; done(false); }, timeoutMs);
+        im.onload = () => done(true);
+        im.onerror = () => done(false);
+        im.src = src;
+      };
+      attempt(retries);
+    });
+  }
   // Images read from disk taint a canvas, and iconURL could not export them, so file:// play
   // takes its sprites from bundled data URLs. A server never needs that file.
   const loadInlineSprites = () => new Promise(resolve => {
     if (window.location?.protocol !== "file:" || window.BC_INLINE_SPRITES) return resolve();
     const script = document.createElement("script");
+    const timer = setTimeout(() => { script.onload = script.onerror = null; resolve(); }, ASSET_TIMEOUT_MS);
     script.src = "assets/sprites.inline.js";
-    script.onload = script.onerror = () => resolve();
+    script.onload = script.onerror = () => { clearTimeout(timer); resolve(); };
     document.head.append(script);
   });
   async function loadAssets(onProgress) {
     const M = window.BC_ASSETS;
     if (!M) throw new Error("assets/manifest.js missing — run tools/build_sprites.py");
+    assetWarnings.length = 0;
     await loadInlineSprites();
     const inline = window.BC_INLINE_SPRITES || {};
     const jobs = [];
@@ -328,21 +421,24 @@
       for (const [k, v] of Object.entries(M[group] || {})) jobs.push([group + ":" + k, inline[v.src] || "assets/" + v.src]);
     }
     let done = 0;
-    return Promise.all(jobs.map(([key, src]) => new Promise((res) => {
-      const im = new Image();
-      im.onload = im.onerror = () => { images[key] = im; done++; onProgress && onProgress(done / jobs.length); res(); };
-      im.src = src;
+    return Promise.all(jobs.map(([key, src]) => loadImageWithRetry(src).then(({ ok, im }) => {
+      images[key] = im;
+      if (!ok) assetWarnings.push(key);
+      done++;
+      onProgress && onProgress(done / jobs.length);
     })));
   }
   const stageLoads = new Map();
   function loadStageArt(index) {
     index %= BC.STAGES.length;
-    if (!stageLoads.has(index)) stageLoads.set(index, new Promise(resolve => {
-      const im = new Image();
-      im.onload = () => { images["stage:" + index] = im; resolve(im); };
-      im.onerror = () => resolve(null);
-      im.src = `assets/art/stage-${String(index + 1).padStart(2, "0")}.png`;
-    }));
+    if (!stageLoads.has(index)) {
+      const pending = loadImageWithRetry(`assets/art/stage-${String(index + 1).padStart(2, "0")}.png`).then(({ ok, im }) => {
+        if (ok) { images["stage:" + index] = im; return im; }
+        stageLoads.delete(index);   // transient failure can retry on next visit
+        return null;
+      });
+      stageLoads.set(index, pending);
+    }
     return stageLoads.get(index);
   }
 
@@ -377,6 +473,26 @@
 
   // --------------------------------------------------------------- audio --
   const ac = () => BC.audio?.context();
+  const noisePool = new WeakMap();
+  const sfxStamp = new Map();
+  function allowSfx(id, gapMs) {
+    if (!gapMs || typeof performance === "undefined") return true;
+    const now = performance.now(), prev = sfxStamp.get(id);
+    if (prev !== undefined && now > prev && now - prev < gapMs) return false;
+    sfxStamp.set(id, now);
+    return true;
+  }
+  function sharedNoise(a) {
+    let buf = noisePool.get(a);
+    if (!buf) {
+      const len = Math.max(8, Math.floor(a.sampleRate * 2));
+      buf = a.createBuffer(1, len, a.sampleRate);
+      const d = buf.getChannelData(0);
+      for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+      noisePool.set(a, buf);
+    }
+    return buf;
+  }
   function tone(freq, dur, type, vol, slide, when) {
     const a = ac(); if (!a) return;
     const t = a.currentTime + (when || 0);
@@ -392,24 +508,30 @@
   function noise(dur, vol, when, hp, output) {
     const a = ac(); if (!a) return;
     const t = a.currentTime + (when || 0);
-    const buf = a.createBuffer(1, Math.floor(a.sampleRate * dur), a.sampleRate);
-    const d = buf.getChannelData(0);
-    for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / d.length);
     const s = a.createBufferSource(), g = a.createGain(), f = a.createBiquadFilter();
     f.type = "highpass"; f.frequency.value = hp || 800;
-    s.buffer = buf; g.gain.value = vol || 0.15;
+    s.buffer = sharedNoise(a);
+    s.loop = dur > 1.8;
+    g.gain.setValueAtTime(vol || 0.15, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
     s.connect(f).connect(g).connect(output || BC.audio.output("effects"));
-    s.start(t);
+    s.start(t); s.stop(t + dur + 0.02);
   }
   const sfx = {
-    drum: (w) => { tone(90, 0.35, "sine", 0.5, 0.5, w); noise(0.08, 0.08, w, 200); },
-    drums: () => { [0, 0.18, 0.36, 0.6].forEach((w, i) => sfx.drum(w + (i === 3 ? 0.02 : 0))); },
+    drum: (w) => { tone(90, 0.35, "sine", 0.45, 0.5, w); noise(0.08, 0.07, w, 200); },
+    drums: () => { if (!allowSfx("drums", 180)) return; [0, 0.18, 0.36, 0.6].forEach((w, i) => sfx.drum(w + (i === 3 ? 0.02 : 0))); },
     chime: () => { [880, 1320, 1760].forEach((f, i) => tone(f, 0.9, "triangle", 0.08, null, i * 0.07)); },
-    hit: () => { noise(0.06, 0.06, 0, 1500); tone(160, 0.08, "square", 0.04, 0.6); },
-    coin: () => { tone(1400, 0.08, "square", 0.04); tone(2100, 0.12, "square", 0.04, null, 0.06); },
-    deploy: () => { tone(220, 0.15, "triangle", 0.15, 1.5); sfx.drum(0); },
-    cast: () => { tone(440, 0.4, "sawtooth", 0.06, 2); tone(660, 0.5, "triangle", 0.06, 1.5, 0.05); },
-    die: () => { tone(200, 0.3, "sawtooth", 0.05, 0.3); },
+    hit: () => { if (!allowSfx("hit", 45)) return; noise(0.06, 0.055, 0, 1500); tone(160, 0.08, "square", 0.035, 0.6); },
+    arrow: () => { if (!allowSfx("arrow", 50)) return; noise(0.07, 0.045, 0, 2600); tone(620, 0.07, "triangle", 0.04, 0.45); },
+    heal: () => { if (!allowSfx("heal", 80)) return; [523, 659, 784].forEach((f, i) => tone(f, 0.38, "sine", 0.045, null, i * 0.05)); },
+    shield: () => { if (!allowSfx("shield", 80)) return; tone(330, 0.3, "triangle", 0.06, 1.05); tone(495, 0.35, "sine", 0.05, null, 0.03); },
+    coin: () => { if (!allowSfx("coin", 40)) return; tone(1400, 0.08, "square", 0.038); tone(2100, 0.12, "square", 0.038, null, 0.06); },
+    deploy: () => { if (!allowSfx("deploy", 60)) return; tone(220, 0.15, "triangle", 0.14, 1.5); sfx.drum(0); },
+    cast: () => { if (!allowSfx("cast", 60)) return; tone(440, 0.36, "sawtooth", 0.048, 1.9); tone(660, 0.45, "triangle", 0.055, 1.45, 0.05); },
+    die: () => { if (!allowSfx("die", 60)) return; tone(200, 0.28, "sawtooth", 0.045, 0.32); },
+    boss: () => { if (!allowSfx("boss", 400)) return; tone(65, 1.1, "sawtooth", 0.09, 0.92); tone(98, 1.0, "triangle", 0.11, 0.96, 0.08); sfx.drums(); },
+    razed: () => { noise(0.95, 0.2, 0, 120); tone(62, 0.9, "sine", 0.32, 0.35); tone(124, 0.45, "sawtooth", 0.08, 0.4); },
+    ach: () => { [587, 784, 988, 1175].forEach((f, i) => tone(f, 0.75, "triangle", 0.08, null, i * 0.08)); },
     win: () => { [392, 523, 659, 784].forEach((f, i) => tone(f, 0.6, "triangle", 0.12, null, i * 0.15)); sfx.drums(); },
     lose: () => { [392, 330, 262, 196].forEach((f, i) => tone(f, 0.7, "sawtooth", 0.06, null, i * 0.22)); },
     click: () => tone(600, 0.05, "square", 0.04),
@@ -550,7 +672,7 @@
     save, persist, resetSave, exportSave, importSave, normalizeSave, validateData,
     tribeUnits, unlockedUnits, mercenaryUnits, lineup, addToLineup, fillLineup,
     advanceTutorial, skipTutorial, resetTutorial, makeRng,
-    makeBurn, rollTier, unitStats, burnText, burnWastedStats, salvageBurn, fuseCandidates, fuseBurns, rerollBurn,
-    images, loadAssets, loadStageArt, drawFrame, iconURL, sfx, ambience, narrate, narrating, cancelNarration,
+    makeBurn, rollTier, unitStats, burnText, burnWastedStats, salvageBurn, fuseCandidates, fuseBurns, rerollBurn, resolveBattleRewards,
+    images, assetWarnings, loadImageWithRetry, loadAssets, loadStageArt, drawFrame, iconURL, sfx, ambience, narrate, narrating, cancelNarration,
   });
 })();

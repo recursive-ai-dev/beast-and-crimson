@@ -1,0 +1,24 @@
+Beast and Crimson — v0.10.7 Devlog
+Date: 2026-11-25
+
+---
+
+Faster Web Loads & Optimized Artwork
+
+All ten campaign biome paintings and the title crest have been resized and palette-optimized for their actual display dimensions, cutting the bundled artwork payload from 23 MB down to 2.7 MB (~88% smaller). Web builds on itch.io now load noticeably faster without sacrificing pixel sharpness.
+
+---
+
+Bloodfang Late-Campaign Tuning
+
+Bloodfang's tribe passive now grants +25% unit health (up from +15%) alongside +25% damage, giving its frontline enough staying power to punch through Chapters 9 and 10 when paired with Runic Burns and a mercenary.
+
+---
+
+Modular UI & Expanded Verification
+
+- Split the 1,554-line UI layer into focused per-screen modules (intro, menu, campaign, warband, battle, and settings) for cleaner maintenance.
+- Expanded the headless campaign simulator to test late-roster lineups, mercenaries, and Runic Burns across Chapters 8–10.
+- Updated and verified the full Playwright browser and audio regression suite across desktop and mobile viewports.
+
+Available on itch.io (Web HTML5 + Linux AppImage) and GitHub Releases (.AppImage, .deb, .rpm).

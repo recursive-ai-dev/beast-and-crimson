@@ -1,0 +1,20 @@
+{
+  "name": "Beast and Crimson: Tribes",
+  "short_name": "Beast & Crimson",
+  "description": "Rally your tribe, awaken ancient runes, and bring down the Collector King's ten keeps. An offline dark fantasy lane battler.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "any",
+  "background_color": "#070303",
+  "theme_color": "#120606",
+  "categories": ["games", "strategy"],
+  "icons": [
+    {
+      "src": "assets/art/crest.png",
+      "sizes": "256x256",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

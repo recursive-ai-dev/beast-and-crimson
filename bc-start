@@ -10,12 +10,22 @@ if ! command -v python3 >/dev/null 2>&1; then
   exit 1
 fi
 
-# Use the given port, or the first free one from 8000 up.
+# Use the given port, or reuse an already-running Beast and Crimson on 8000, or pick a free port.
 port="${1:-}"
 if [ -z "$port" ]; then
+  if python3 -c "import urllib.request,sys; html=urllib.request.urlopen('http://127.0.0.1:8000/index.html',timeout=0.5).read().decode('utf-8','ignore'); sys.exit(0 if 'Beast and Crimson' in html else 1)" 2>/dev/null; then
+    url="http://127.0.0.1:8000/index.html"
+    echo "Beast and Crimson is already running at $url — opening browser."
+    xdg-open "$url" >/dev/null 2>&1 || open "$url" >/dev/null 2>&1 || echo "Open $url in your browser."
+    exit 0
+  fi
   for p in $(seq 8000 8100); do
     if ! (exec 3<>"/dev/tcp/127.0.0.1/$p") 2>/dev/null; then port=$p; break; fi
   done
+  if [ -n "$port" ] && [ "$port" != "8000" ]; then
+    echo "Warning: port 8000 is in use by another program; starting on port $port instead." >&2
+    echo "Browser saves are tied to the port — use Settings -> Export/Import save if moving progress." >&2
+  fi
 fi
 [ -n "$port" ] || { echo "No free port found in 8000-8100." >&2; exit 1; }
 

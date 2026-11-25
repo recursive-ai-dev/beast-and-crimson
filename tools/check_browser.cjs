@@ -18,7 +18,7 @@ const loadDriver = () => {
 };
 const { playwright, puppeteer } = loadDriver();
 const root = path.resolve(__dirname, "..");
-const types = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".png": "image/png", ".ttf": "font/ttf", ".mp3": "audio/mpeg" };
+const types = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".png": "image/png", ".ttf": "font/ttf", ".woff": "font/woff", ".woff2": "font/woff2", ".mp3": "audio/mpeg", ".webmanifest": "application/manifest+json", ".json": "application/json" };
 const server = http.createServer(async (req, res) => {
   try {
     const name = path.resolve(root, "." + decodeURIComponent(new URL(req.url, "http://localhost").pathname));
@@ -233,8 +233,15 @@ async function main() {
     await page.click("#menu .start-btn"); await screen("campaign");
     await screenshot("campaign-desktop");
     assert.match(await page.$eval(".campaign-copy h3", el => el.textContent), /Iron Fortress/);
+    // Honours dialog is reachable from Campaign and restores focus cleanly.
+    await page.click(".honours-btn");
+    assert.match(await page.$eval("#campaign .brief h3", el => el.textContent), /Honours of the Rebellion/);
+    assert.equal(await page.$$eval("#campaign .brief .honour-card", els => els.length), 4);
+    await page.keyboard.press("Escape");
+    assert.equal(await page.$eval(".honours-btn", el => el === document.activeElement), true);
     await page.$eval(".continue-campaign", el => el.focus()); await page.keyboard.press("Enter");
     assert.equal(await page.$eval(".brief .btns button:last-child", el => el === document.activeElement), true);
+    assert.equal(await page.$$eval(".brief .brief-spoils", els => els.length), 1, "Stage briefing previews clear spoils");
     await screenshot("briefing-desktop"); await page.keyboard.press("Escape");
     assert.equal(await page.$eval(".continue-campaign", el => el === document.activeElement), true);
     await page.click(".warband-btn"); await screen("warband");
@@ -311,8 +318,43 @@ async function main() {
     assert.equal(await page.evaluate(() => BC.saveStatus), "unavailable");
     assert.match(await page.$eval("#menu .save-status", el => el.textContent), /Saving unavailable/);
     await page.click("#menu .start-btn"); await screen("campaign");
+    // Accessibility & HUD DOM-efficiency checks across active screens.
+    const checkA11y = async (label) => {
+      const issues = await page.evaluate(() => {
+        const errs = [];
+        if (!document.querySelector("main#app")) errs.push("Missing <main id='app'> landmark");
+        document.querySelectorAll("img").forEach(img => { if (!img.hasAttribute("alt")) errs.push("img missing alt: " + img.outerHTML.slice(0, 80)); });
+        const IMPLICIT_ROLES = new Set(["BUTTON", "A", "INPUT", "SELECT", "TEXTAREA", "SECTION", "NAV", "MAIN", "ASIDE", "HEADER", "FOOTER", "FORM", "TABLE", "IMG", "H1", "H2", "H3", "H4", "H5", "H6", "PROGRESS", "DIALOG"]);
+        document.querySelectorAll("[aria-label]").forEach(el => {
+          if (!el.hasAttribute("role") && !IMPLICIT_ROLES.has(el.tagName)) errs.push("aria-label on role-less " + el.tagName + "." + el.className);
+        });
+        const headings = [...document.querySelectorAll("h1, h2, h3, h4, h5, h6")].filter(el => el.getClientRects().length && !el.closest("[inert]"));
+        for (let i = 1; i < headings.length; i++) {
+          const prev = +headings[i - 1].tagName[1], cur = +headings[i].tagName[1];
+          if (cur > prev + 1) errs.push(`Heading jump h${prev} -> h${cur} (${headings[i].textContent})`);
+        }
+        return errs;
+      });
+      assert.deepEqual(issues, [], `Accessibility issues on ${label}: ${issues.join("; ")}`);
+    };
+    await checkA11y("campaign");
+    await page.click(".mission"); await checkA11y("briefing");
+    await page.click(".brief .btns button:last-child"); await screen("battle");
+    await checkA11y("battle");
+    // Verify dirty-checked HUD writes: 30 unchanged HUD refreshes must not rewrite aria-label or textContent.
+    const mutations = await page.evaluate(() => new Promise(resolve => {
+      const b = BC.currentBattle;
+      cancelAnimationFrame(b._raf); b.loop = () => {};
+      b.onHud(b, true);
+      let count = 0;
+      const obs = new MutationObserver(list => { count += list.length; });
+      obs.observe(document.querySelector("#battle .hud"), { attributes: true, childList: true, characterData: true, subtree: true });
+      for (let i = 0; i < 30; i++) b.onHud(b, true);
+      Promise.resolve().then(() => { obs.disconnect(); resolve(count); });
+    }));
+    assert.equal(mutations, 0, `Unchanged HUD state caused ${mutations} redundant DOM mutations`);
     assert.deepEqual(errors, []);
-    console.log("[OK] Malformed browser saves recover with valid progress preserved; no uncaught browser errors");
+    console.log("[OK] Malformed browser saves recover, accessibility invariants hold, and idle HUD performs zero redundant DOM writes");
   } finally {
     if (browser) await browser.close();
     await new Promise(resolve => server.close(resolve));
