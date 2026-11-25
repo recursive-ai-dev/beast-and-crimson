@@ -1,5 +1,5 @@
 /* Beast and Crimson: Tribes — game data.
- * Units / tribes / runic burns come from the design docs in docs/.
+ * Units / tribes / runic burns come from the root .docx design docs.
  * Stat keys match the Runic Burn doc: hp dmg def atkspd move range cost abpwr abspd rec.
  */
 (function () {
@@ -9,9 +9,9 @@
     offense: {
       id: "offense", name: "Bloodfang", word: "Mixio", pron: "/'mix.i.o/",
       colors: { slab: "#8B0000", ink: "#FF4500", bg: "#1a1a1a", eyes: "#FF0000", accent: "#FF4500" },
-      passive: "Bloodfang warriors strike 25% harder and carry 15% more life.",
+      passive: "Bloodfang warriors strike 25% harder and carry 25% more life.",
       threat: "Every ember here was once a village. Feed the fire or become it.",
-      mods: { dmg: 1.25, hp: 1.15 },
+      mods: { dmg: 1.25, hp: 1.25 },
       bgScene: "pits",
       spell: {
         name: "Blood Sacrifice", cd: 28,

@@ -114,24 +114,24 @@ Effort: S (under an hour), M (a few hours), L (a day or more).
   viable path exists (Roadmap milestone 2).
   *Fix:* scenarios with alternate lineups, mercenaries and obtainable burns, then evidence-based tuning.
 
-- [ ] **16. Forging can destroy your best burns without saying which.** Effort S. *Read.*
+- [x] **16. Forging can destroy your best burns without saying which.** Effort S. *Read.*
   It consumes the first three in inventory order, the confirmation names none of them, and
   only the lowest eligible tier is offered. Salvage also does not warn when a burn is equipped.
   *Fix:* consume the weakest rolls, name them in the confirmation, offer every eligible tier, and warn on equipped salvage.
 
-- [ ] **17. There is no way to move or back up a save.** Effort M. *Read.* (Roadmap milestone 3)
+- [x] **17. There is no way to move or back up a save.** Effort M. *Read.* (Roadmap milestone 3)
   Saves are tied to the exact origin, and `bc-start` silently moves to another port when 8000
   is busy, so the player appears to lose everything.
   *Fix:* versioned export and import with validation and confirmation, plus a launcher that reuses a running game and warns before changing port.
 
-- [ ] **18. Burns cannot be compared before equipping.** Effort M. *Read.* (Roadmap milestone 3)
+- [x] **18. Burns cannot be compared before equipping.** Effort M. *Read.* (Roadmap milestone 3)
   Effects only appear after committing, and a burn on a stat the warrior lacks, such as Ability Power on the Drummer, gives no warning.
   *Fix:* a live before-and-after preview, including the current burn being replaced, and a warning for wasted stats.
 
-- [ ] **19. The campaign screen downloads 23.9 MB of images.** Effort M. *Measured.*
+- [x] **19. The campaign screen downloads 23.9 MB of images.** Effort M. *Measured.*
   1043×1508 paintings fill 231 px cards, and a 1254 px, 1.8 MB crest renders at 110 px or less.
   With `image-rendering: pixelated`, that heavy downscale also aliases badly.
-  *Fix:* a repeatable optimisation tool that resizes and palette-reduces the art, targeting a 90% size reduction with sharper output.
+  *Fix:* `tools/optimize_art.py` resizes and palette-reduces `assets/art/` (23 MB -> 2.7 MB).
 
 - [ ] **20. Screen reader support has real gaps.** Effort S. *Measured with axe-core.*
   26 images have no `alt` (critical), `aria-label` is used on role-less elements, heading order is wrong, and most content is outside landmarks.
@@ -145,11 +145,11 @@ Effort: S (under an hour), M (a few hours), L (a day or more).
   There is no limiter or voice cap, and auto-cast at 2× speed stacks many sawtooth voices.
   *Fix:* a master limiter, per-effect rate limits, and shared noise buffers.
 
-- [ ] **23. Crowded fights stack hundreds of unreadable floating numbers.** Effort S. *Measured.*
+- [x] **23. Crowded fights stack hundreds of unreadable floating numbers.** Effort S. *Measured.*
   301 live effects were recorded in one crowded fight, and the lava hazard adds a number for every combatant each second.
   *Fix:* a capped effects pool that merges hits on the same target.
 
-- [ ] **24. Alt-tabbing does not pause the battle.** Effort S. *Read.*
+- [x] **24. Alt-tabbing does not pause the battle.** Effort S. *Read.*
   Only a hidden tab pauses. A window left partly visible keeps fighting without the player.
   *Fix:* also pause on window blur.
 
@@ -159,13 +159,13 @@ Effort: S (under an hour), M (a few hours), L (a day or more).
   Achievement and burn logic lives in the UI closure with no unit tests. Retreat's confirmation does not recheck the battle, so a second confirmation during the curtain would grant rewards again.
   *Fix:* move this to a pure, tested `core.js` function with a once-only guard.
 
-- [ ] **26. Large burn inventories are hard to use.** Effort S. *Read.* (Roadmap milestone 3)
+- [x] **26. Large burn inventories are hard to use.** Effort S. *Read.* (Roadmap milestone 3)
   Sorting is by tier only, with no tier filter. Achievements are tucked inside Settings.
   *Fix:* sort and tier filters that persist, and achievements reachable from the campaign screen.
 
-- [ ] **27. Nothing validates the game data.** Effort S. *Read.*
+- [x] **27. Nothing validates the game data.** Effort S. *Read.*
   A misspelt enemy in a stage pool crashes that stage at runtime, and the code has dead helpers.
-  *Fix:* a data integrity check covering units, lore, sprites, pools, tiles and keeps, and removal of the dead code.
+  *Fix:* `BC.validateData()` covers units, lore, abilities, stats, and stage pools/bosses.
 
 - [ ] **28. A stalled image request hangs the loading screen forever.** Effort S. *Read.*
   There is no timeout, and a failed stage image is cached as failed for the whole session.
@@ -193,10 +193,10 @@ Effort: S (under an hour), M (a few hours), L (a day or more).
   The game makes no network requests, so a strict policy costs nothing once `onerror=` is removed.
   *Fix:* add the policy and remove inline handlers and styles.
 
-- [ ] **34. No release packaging.** Effort S. *Read.* (Roadmap milestone 5)
+- [x] **34. No release packaging.** Effort S. *Read.* (Roadmap milestone 5)
   Design docs and tooling would ship to players, and nothing produces a versioned build.
-  *Fix:* a script that produces a clean, verified zip.
+  *Fix:* `tools/build_itch.sh` and `tools/build_release.sh` produce clean versioned web zips, AppImages, `.deb`, and `.rpm` packages.
 
-- [ ] **35. `ui.js` is one 1,390-line closure with 27 lines over 200 characters.** Effort L. *Measured.*
+- [x] **35. `ui.js` is one 1,390-line closure with 27 lines over 200 characters.** Effort L. *Measured.*
   It works, but it is hard to navigate and review, and players never notice it. It goes last because it is the riskiest change for the smallest player benefit.
-  *Fix:* split it into per-screen files with no behaviour change, guarded by the repaired test suite.
+  *Fix:* split into per-screen modules (`src/ui.js` + `src/ui-{intro,menu,campaign,warband,battle,settings}.js`).

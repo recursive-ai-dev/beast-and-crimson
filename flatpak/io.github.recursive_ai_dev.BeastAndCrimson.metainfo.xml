@@ -64,6 +64,11 @@
   </content_rating>
 
   <releases>
+    <release version="0.10.7" date="2026-11-25">
+      <description>
+        <p>Optimized campaign artwork (~88% smaller web download), tuned Bloodfang late-campaign survival, split UI into per-screen modules, and updated simulation and browser clarity checks.</p>
+      </description>
+    </release>
     <release version="0.10.6" date="2026-11-25">
       <description>
         <p>Added 60 unit deployment voice clips, clearer Runic Burn reward equipping UX, and fixed the briefing title border overlap.</p>

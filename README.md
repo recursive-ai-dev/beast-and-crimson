@@ -126,9 +126,10 @@ src/battle.js       lane simulation + canvas renderer (480×270, pixel-scaled)
 src/intro.js        intro timeline & subtitle parser
 src/intro-scene.js  illustrated intro scene renderer
 src/errors.js       global error boundary with save download
-src/ui.js           screens, transitions, HUD, warband, results, settings
+src/ui.js           shared UI helpers, dialog focus trap, screen router, tooltips
+src/ui-*.js         per-screen UI modules (intro, menu, campaign, warband, battle, settings)
 tools/              sim.js, check_battle.cjs, check_lifecycle.cjs, check_intro_timeline.cjs,
-                    check_browser.cjs, check_clarity.cjs, check_audio.cjs, build_release.sh
+                    check_browser.cjs, check_clarity.cjs, check_audio.cjs, optimize_art.py, build_release.sh
 ```
 
 Run the unit & simulation suite with `npm run test:unit` (or `npm test` to include browser checks).

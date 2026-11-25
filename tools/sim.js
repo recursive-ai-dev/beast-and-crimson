@@ -30,6 +30,7 @@ function runStage(tribe, stageIdx, lineup, endless = false, maxTime = 240, seedO
   return {
     win: result ? result.win : false,
     time: Math.round(b.t),
+    baseHpPct: Math.round((b.player.hp / b.player.max) * 100),
     waves: b.stats.waves,
     kills: b.stats.kills,
     abilities: b.stats.abilities,
@@ -293,6 +294,43 @@ function main() {
       row.push(`S${s + 1}:${wins}/${runs}`);
     }
     console.log(`  ${tribe.padEnd(8)} | ${row.join(" ")}`);
+  }
+
+  console.log("\nSimulating Late-Campaign Path (Stages 8-10, late-roster + 1 merc + Tier 2-3 Burns):");
+  const latePlans = {
+    offense: {
+      lineup: ["Beast Berserker", "Bloodthirsty Warlord", "Thunderhoof Juggernaut", "Battle Mage", "Healing Shaman"],
+      burns: { "Beast Berserker": ["atkspd", "rec"], "Bloodthirsty Warlord": ["hp", "move"], "Thunderhoof Juggernaut": ["def", "move"], "Battle Mage": ["abpwr", "def"], "Healing Shaman": ["abspd", "dmg"] },
+    },
+    defense: {
+      lineup: ["Totem Shieldbearer", "Healing Shaman", "Guardian Spirit", "Spirit Slowclaw", "Bloodthirsty Warlord"],
+      burns: { "Totem Shieldbearer": ["hp", "move"], "Healing Shaman": ["abpwr", "dmg"], "Guardian Spirit": ["def", "move"], "Spirit Slowclaw": ["abspd", "rec"], "Bloodthirsty Warlord": ["dmg", "def"] },
+    },
+    greed: {
+      lineup: ["Golden Totemist", "Pledge Warbeast", "Golden Beffalo", "Trade Pact Alpha", "Healing Shaman"],
+      burns: { "Golden Totemist": ["abspd", "def"], "Pledge Warbeast": ["hp", "move"], "Golden Beffalo": ["def", "move"], "Trade Pact Alpha": ["cost", "rec"], "Healing Shaman": ["abpwr", "dmg"] },
+    },
+  };
+  for (const tribe of ["offense", "defense", "greed"]) {
+    const plan = latePlans[tribe];
+    const row = [];
+    for (const s of [7, 8, 9]) {
+      let wins = 0, totalTime = 0, totalHp = 0;
+      const tier = s === 9 ? 3 : 2;
+      for (let r = 0; r < runs; r++) {
+        BC.resetSave();
+        for (const [unit, [buff, debuff]] of Object.entries(plan.burns)) {
+          const burn = { id: BC.save.nextId++, tier, buff, up: Math.round(BC.BURN_STATS[buff].up[0] * BC.TIER_UP[tier]), debuff, down: Math.round(BC.BURN_STATS[debuff].down[0] * BC.TIER_DOWN[tier]) };
+          BC.save.burns.push(burn);
+          BC.save.equipped[unit] = burn.id;
+        }
+        const res = runStage(tribe, s, plan.lineup, false, 300, r * 101);
+        if (res.win) { wins++; totalTime += res.time; totalHp += res.baseHpPct; }
+      }
+      const avg = wins ? ` (${Math.round(totalTime / wins)}s, ${Math.round(totalHp / wins)}% HP)` : "";
+      row.push(`S${s + 1}:${wins}/${runs}${avg}`);
+    }
+    console.log(`  ${tribe.padEnd(8)} | ${row.join(" | ")}`);
   }
 
   console.log("\nSimulating Endless Mode (180s cap):");

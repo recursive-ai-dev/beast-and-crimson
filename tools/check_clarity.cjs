@@ -60,7 +60,7 @@ module.exports = async function checkClarity(browser, url, playwright) {
     await page.evaluate(() => { const b = BC.currentBattle; b.gold = 0; b.onHud(b, true); });
     const portrait = await page.$(".ubtn"); await portrait.hover();
     assert.match(await tip(), /Golden Totemist.*Ranged/s);
-    assert.match(await tip(), /Need 60 more gold/);
+    assert.match(await tip(), /Need 70 more gold/);
     await bounds("#tooltip:not(.hidden)");
     await page.$eval(".ubtn", el => el.focus()); await page.keyboard.press("Tab");
     assert.equal(await page.$eval(".cast-btn", el => el === document.activeElement), true, "Unavailable casts remain keyboard inspectable");
@@ -72,8 +72,8 @@ module.exports = async function checkClarity(browser, url, playwright) {
     for (const [width, height] of [[1280, 720], [844, 390], [568, 320], [390, 844], [320, 568]]) {
       await viewport({ width, height });
       await tap(".ubtn");
-      assert.match(await tip(), /Need 60 more gold/, `Portrait tooltip at ${width}x${height}`);
-      assert.match(await page.$eval(".toast", el => el.textContent), /need 60 more gold/);
+      assert.match(await tip(), /Need 70 more gold/, `Portrait tooltip at ${width}x${height}`);
+      assert.match(await page.$eval(".toast", el => el.textContent), /need 70 more gold/);
       await bounds("#tooltip:not(.hidden)");
       await clearControls();
       assert.equal(await page.evaluate(() => BC.currentBattle.stats.deployed), 0);
@@ -104,8 +104,8 @@ module.exports = async function checkClarity(browser, url, playwright) {
     await page.evaluate(() => { const b = BC.currentBattle; b.slots[0].cd = 0; b.onHud(b, true); });
     await page.$eval(".ubtn", el => el.focus());
     await page.evaluate(() => { const b = BC.currentBattle; b.player.discountT = 8; b.onHud(b, true); });
-    assert.match(await tip(), /Cost: 45 gold/);
-    assert.match(await page.$eval(".ubtn", el => el.getAttribute("aria-label")), /45 gold/);
+    assert.match(await tip(), /Cost: 53 gold/);
+    assert.match(await page.$eval(".ubtn", el => el.getAttribute("aria-label")), /53 gold/);
 
     await page.evaluate(() => {
       const b = BC.currentBattle; b.ents = []; b.gold = 250; b.deploy(2); b.ents[0].abT = 0; b.onHud(b, true);

@@ -86,11 +86,11 @@ Primary files: `src/data.js`, `src/battle.js`, `src/core.js`, `tools/sim.js`.
 
 ## Milestone 3 Progression and saves
 
-- [ ] Preview a burn's effect on the selected warrior before equipping it, including the tradeoff and any change from the currently equipped burn.
-- [ ] Improve inventory sorting and filtering if larger inventories make useful burns hard to find.
+- [x] Preview a burn's effect on the selected warrior before equipping it, including the tradeoff and any change from the currently equipped burn.
+- [x] Improve inventory sorting and filtering if larger inventories make useful burns hard to find.
 - [ ] Make achievement goals, completion, and rewards easy to review; preserve Cosmic Brands as achievement rewards.
-- [ ] Add save export and import with a versioned format, validation, and confirmation before replacing current progress.
-- [ ] Verify a full save round trip, older saves, malformed imports, and unavailable browser storage. An invalid import must leave current progress intact.
+- [x] Add save export and import with a versioned format, validation, and confirmation before replacing current progress.
+- [x] Verify a full save round trip, older saves, malformed imports, and unavailable browser storage. An invalid import must leave current progress intact.
 
 **Done when:** players can explain an upgrade's benefit and drawback, find their next
 progression goal, and transfer a save to a fresh browser without losing campaign,
