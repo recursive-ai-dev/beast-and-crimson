@@ -1,25 +1,37 @@
 Beast and Crimson - v0.11.0 Devlog
+
 Date: 2026-11-25
 
 ---
 
-Cinematic Intro Polish
+Cinematic Story Intro Overhaul
 
-- Refined all six parallax story shots: harvest dusk moon and torch-lit collector march, stormlit river contrast, rising oath embers, unobstructed tribe war-banners and fire braziers, full 128x128 obsidian citadel with the Collector King standing on high battlements, and a clean rebellion ridge finale with beat-progress pips and sharper subtitle typography.
-- Removed the em-dash from the river narration subtitle and unified "the crown" terminology across the opening story.
+The six-shot opening story sequence has received a full visual and narrative pass:
 
----
+- Every parallax shot has been refined for stronger mood and readability: a harvest dusk sun and crescent moon as torch-bearing collectors march down the village road, stormlit silver ripples on the dark river, rising shoreline oath-embers, tall glowing war-banners behind each gathered tribe with fire braziers set cleanly between columns, and a silhouette ridge of rebel spears beneath the three tribe emblems.
 
-Linux .deb & Desktop Audio Fix
+- The Collector King's fortress in the fifth shot now renders its full 128x128 dark-iron citadel, anchors its siege catapults on crenellated stone bastions, burns with crimson gatehouse fire, and places the Collector King on high battlements between twin obsidian spires rather than floating above the roof.
 
-- Fixed restrictive directory/file permissions in .deb and .rpm packaging when built under umask 0077 so installed desktop packages launch directly as a normal user with full PipeWire / PulseAudio session access.
-- Unpacked streamed MP3 soundtrack and unit voice assets outside app.asar, disabled Chromium's Linux AudioServiceSandbox restriction, and enabled immediate desktop audio playback on launch.
+- Subtitles now use crisp parchment-ivory serif typography with molten crimson emphasis, framed by clean gold-and-ember letterbox hairlines and diamond beat-progress pips.
 
 ---
 
-Combat Spectacle, Accessibility & Web Polish
+Linux .deb Package & Desktop Audio Fix
 
-- Added unit hop strides, melee lunges, shield wards, bespoke ability bursts/beams/slashes, biome weather VFX, champion/Collector King boss bars, and stronghold collapse animations.
-- Added the Honours dialog on the Campaign screen, pure once-only battle reward resolution, per-asset load retry, compressed WOFF fonts, strict CSP, and offline PWA manifest/service worker support.
+Thank you for the quick report on audio in the Debian build. Version 0.11.0 resolves the desktop packaging and Linux audio issues:
+
+- Fixed restrictive directory and file permissions in the .deb and .rpm packages caused by building under a strict shell umask (0077), so installed desktop builds launch directly under your normal user account with full access to your PipeWire or PulseAudio session.
+
+- Unpacked all streamed MP3 music tracks and 60 unit voice clips outside app.asar, disabled Chromium's Linux AudioServiceSandbox restriction, added PulseAudio and ALSA package recommendations on Debian/Ubuntu, and unlocked desktop audio immediately on launch so menu music and tribe ambience start right away.
+
+---
+
+Battlefield Spectacle, Honours & Offline Web Support
+
+- Combat animations and VFX have been expanded across the lane: stone-totem hop strides, melee lunges, visible shield wards, bespoke ability bursts, beams, and slashes, biome hazard weather, champion and Collector King boss health bars, and crumbling stronghold destruction.
+
+- You can now inspect Honours (achievement goals and Cosmic Brand rewards) directly from the Campaign overview, and post-battle rewards resolve through a once-only guard that protects against duplicate triggers during transitions.
+
+- Web builds now ship compressed WOFF fonts (~50% smaller), automatic per-asset load retries, a strict Content Security Policy, and an installable web manifest and offline service worker cache.
 
 Available on itch.io (Web HTML5 + Linux AppImage) and GitHub Releases (.AppImage, .deb, .rpm).
