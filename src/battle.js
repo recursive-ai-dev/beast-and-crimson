@@ -100,6 +100,7 @@
       this.spawnUnit(slot.name, slot.stats, BASE_X + 22);
       this.stats.deployed++;
       BC.sfx.deploy();
+      BC.audio?.playUnitVoice?.(slot.name);
       this.onAction("deploy", this);
       return true;
     }

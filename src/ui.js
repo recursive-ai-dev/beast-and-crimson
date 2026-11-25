@@ -616,6 +616,18 @@
     const bestBtn = $("#campaign .bestiary-btn");
     bestBtn.dataset.tip = "The Crown's Ledger — Enemy stats, traits, lore & kill tallies";
     bestBtn.onclick = () => { BC.sfx.click(); openBestiary(); };
+    const wbBtn = $("#campaign .warband-btn");
+    const equippedIds = new Set(Object.values(S().equipped));
+    const unboundCount = S().burns.filter(b => !equippedIds.has(b.id)).length;
+    const needsBurn = unboundCount > 0 && BC.lineup(tribe).some(n => !S().equipped[n]);
+    const hasNewUnit = S().newUnits.some(n => BC.UNITS[n]?.tribe === tribe);
+    wbBtn.replaceChildren("Warband", ...(needsBurn || hasNewUnit ? [h("span", { class: "btn-pip", "aria-hidden": "true" }, needsBurn ? `${unboundCount}✦` : "New")] : []));
+    wbBtn.classList.toggle("attention", needsBurn || hasNewUnit);
+    wbBtn.dataset.tip = needsBurn
+      ? `Warband — ${unboundCount} unbound Runic Burn${unboundCount === 1 ? "" : "s"} ready to equip`
+      : hasNewUnit
+        ? "Warband — new warrior unlocked! Inspect or add to your lineup"
+        : "Warband — set your 5-slot lineup and bind Runic Burns";
     const wrap = $("#campaign .missions");
     wrap.innerHTML = "";
     const prog = S().progress[tribe];
@@ -736,11 +748,17 @@
   BC.ASSETS_NAME = (id) => (window.BC_ASSETS.enemies[id] || {}).name || id;
 
   // ------------------------------------------------------------- warband --
-  let wbSel = null, warbandReturn = "campaign";
-  function openWarband(from, focus) {
+  let wbSel = null, warbandReturn = "campaign", warbandFocusBurn = null;
+  function openWarband(from, focus, focusBurnId = null) {
     show("warband", true, { prepare: () => {
       warbandReturn = from;
+      warbandFocusBurn = focusBurnId;
+      if (focusBurnId) S().settings.burnFilter = "all";
       if (focus) wbSel = focus;
+      else if (focusBurnId) {
+        const bare = BC.lineup(S().tribe).find(n => !S().equipped[n]);
+        if (bare) wbSel = bare;
+      }
     } });
   }
   SCREENS.warband = () => {
@@ -801,8 +819,11 @@
         h("div", { class: "lineup-label" }, h("span", { class: "eyebrow" }, "Battle lineup"), h("span", {}, "Choose a slot to inspect")),
         ...Array.from({ length: 5 }, (_, i) => {
           const name = line[i];
+          const burn = name && S().burns.find(b => b.id === S().equipped[name]);
           return name ? h("button", { class: "lineup-member" + (name === wbSel ? " selected" : ""), "data-name": name, "data-tip": unitTip(name, tribe), "aria-label": `Slot ${i + 1}: ${name}. Inspect warrior`, onclick: e => selectUnit(name, e.currentTarget) },
-            h("span", { class: "slot-number" }, i + 1), h("img", { class: "px", alt: "", src: BC.iconURL("units:" + name, 0, 40) }), h("span", {}, name))
+            h("span", { class: "slot-number" }, i + 1),
+            burn ? h("span", { class: "burn-dot", style: `background:${BC.BURN_TIERS[burn.tier].color};color:${BC.BURN_TIERS[burn.tier].color}` }) : h("span", { class: "burn-dot empty", title: "No Runic Burn equipped" }),
+            h("img", { class: "px", alt: "", src: BC.iconURL("units:" + name, 0, 40) }), h("span", {}, name))
             : h("div", { class: "lineup-member empty" }, h("span", { class: "slot-number" }, i + 1), h("span", {}, "Open slot"));
         }));
       all.forEach((name, i) => {
@@ -938,6 +959,9 @@
           }, `Forge 3× ${BC.BURN_TIERS[t].name.split(" ")[0]} → ${BC.BURN_TIERS[t + 1].name.split(" ")[0]}`))));
 
       if (!S().burns.length) info.append(h("p", {}, "No Runic Burns yet. Victories carve them."));
+      else if (!S().equipped[wbSel] && S().burns.some(b => !owner(b.id))) {
+        info.append(h("p", { class: "inventory-note" }, `${wbSel} has no Runic Burn equipped — click Equip on any burn below.`));
+      }
       const filtered = S().burns.filter(b => {
         if (burnFilter === "unbound") return !owner(b.id);
         if (burnFilter !== "all") return b.buff === burnFilter;
@@ -957,7 +981,7 @@
         const salvagePrompt = own
           ? `Equipped on ${own}! Salvage ${tier.name} into +${salvageGain} Crimson Ash?`
           : `Salvage ${tier.name} into +${salvageGain} Crimson Ash?`;
-        const el = h("div", { class: "burn" + (own === wbSel ? " equipped" : ""), "data-burn": b.id, "data-tip": tier.lore },
+        const el = h("div", { class: "burn" + (own === wbSel ? " equipped" : "") + (warbandFocusBurn === b.id ? " focus-burn" : ""), "data-burn": b.id, "data-tip": tier.lore },
           h("div", { class: "glyph", style: `--tier:${tier.color}` }, h("img", { src: BC.iconURL("artifacts:" + tribe, b.tier, 32), alt: "" })),
           h("div", {},
             h("div", { class: "t", style: `color:${tier.color}` }, tier.name),
@@ -1006,6 +1030,11 @@
       });
       if (S().burns.length) info.append(h("p", { class: "inventory-note" }, "Equip one burn per warrior. Forge three unbound burns of the same tier. Equipped burns are protected from forging."));
       info.scrollTop = scrollTop;
+      if (warbandFocusBurn) {
+        const targetBurn = info.querySelector(`[data-burn="${warbandFocusBurn}"]`);
+        warbandFocusBurn = null;
+        if (targetBurn) requestAnimationFrame(() => targetBurn.scrollIntoView({ block: "center", behavior: "smooth" }));
+      }
       if (focusName) [...$("#warband").querySelectorAll("button[data-name]")].find(el => el.dataset.name === focusName && el.classList.contains(focused.classList.contains("lineup-member") ? "lineup-member" : "wb-unit"))?.focus({ preventScroll: true });
       else if (focusClass) $(focusClass, info)?.focus({ preventScroll: true });
       else if (focusButton >= 0) {
@@ -1373,7 +1402,8 @@
     const syncLineup = () => {
       const tribe = S().tribe, line = BC.lineup(tribe);
       const canFill = line.length < 5 && BC.unlockedUnits(tribe).some(n => !line.includes(n));
-      nudge.replaceChildren(h("span", {}, `Lineup ${line.length}/5. ` + (S().tutorial.burn === "equip" && S().burns.length ? "Visit the Warband to equip your first Runic Burn." : "Prepare your warriors before the next battle.")));
+      const earnedBurn = r.rewards.some(x => x.burn);
+      nudge.replaceChildren(h("span", {}, `Lineup ${line.length}/5. ` + (S().tutorial.burn === "equip" && S().burns.length ? "Visit the Warband to equip your first Runic Burn." : earnedBurn ? "New Runic Burn earned — equip it in the Warband to power up your warriors." : "Prepare your warriors before the next battle.")));
       if (canFill) nudge.append(h("button", { class: "stone-btn fill-lineup", onclick: () => { BC.fillLineup(tribe); syncLineup(); } }, "Fill empty slots"));
       for (const { name, button } of unitRewards) {
         const added = line.includes(name);
@@ -1404,8 +1434,8 @@
           line.append(h("div", { class: "reward-card new-warrior", style: `border-color:var(--gold);animation-delay:${0.3 + i * 0.25}s` },
             h("img", { class: "px", src: BC.iconURL("units:" + x.name, 0, 64) }), h("b", {}, "New warrior: " + x.name), button));
         }
-        else if (x.kind === "achievement") { const a = BC.ACHIEVEMENTS[x.id], t = BC.BURN_TIERS[x.burn.tier], tx = BC.burnText(x.burn); line.append(h("div", { class: "reward-card", style: `border-color:${t.color};animation-delay:${0.3 + i * 0.25}s` }, h("div", { style: "color:#ffd700" }, "✦ " + a.name), h("img", { class: "px", src: BC.iconURL("artifacts:" + S().tribe, x.burn.tier, 32) }), h("b", { style: `color:${t.color}` }, t.name), h("div", { style: "color:#7dff8a" }, tx.up), h("div", { style: "color:#ff7d7d" }, tx.down))); }
-        else { const t = BC.BURN_TIERS[x.burn.tier], tx = BC.burnText(x.burn); line.append(h("div", { class: "reward-card", style: `border-color:${t.color};animation-delay:${0.3 + i * 0.25}s` }, h("img", { class: "px", src: BC.iconURL("artifacts:" + S().tribe, x.burn.tier, 32) }), h("b", { style: `color:${t.color}` }, t.name), h("div", { style: "color:#7dff8a" }, tx.up), h("div", { style: "color:#ff7d7d" }, tx.down))); }
+        else if (x.kind === "achievement") { const a = BC.ACHIEVEMENTS[x.id], t = BC.BURN_TIERS[x.burn.tier], tx = BC.burnText(x.burn); line.append(h("div", { class: "reward-card", style: `border-color:${t.color};animation-delay:${0.3 + i * 0.25}s` }, h("div", { style: "color:#ffd700" }, "✦ " + a.name), h("img", { class: "px", src: BC.iconURL("artifacts:" + S().tribe, x.burn.tier, 32) }), h("b", { style: `color:${t.color}` }, t.name), h("div", { style: "color:#7dff8a" }, tx.up), h("div", { style: "color:#ff7d7d" }, tx.down), h("button", { class: "stone-btn reward-add", onclick: () => openWarband("result", null, x.burn.id) }, "Equip in Warband"))); }
+        else { const t = BC.BURN_TIERS[x.burn.tier], tx = BC.burnText(x.burn); line.append(h("div", { class: "reward-card", style: `border-color:${t.color};animation-delay:${0.3 + i * 0.25}s` }, h("img", { class: "px", src: BC.iconURL("artifacts:" + S().tribe, x.burn.tier, 32) }), h("b", { style: `color:${t.color}` }, t.name), h("div", { style: "color:#7dff8a" }, tx.up), h("div", { style: "color:#ff7d7d" }, tx.down), h("button", { class: "stone-btn reward-add", onclick: () => openWarband("result", null, x.burn.id) }, "Equip in Warband"))); }
       });
       rw.append(line);
       if (!r.endless && lastStage === 9) rw.append(h("p", { class: "parchment", style: "max-width:520px" }, "The Collector King drowns in his own gold, and the river finally gives back its dead. Your wife's name is spoken in every village you freed. It does not bring her home."));
@@ -1416,7 +1446,10 @@
     }
     $("#result .retry").onclick = () => startBattle(lastStage, lastEndless);
     $("#result .to-menu").onclick = () => show("menu", true);
-    $("#result .manage-warband").onclick = () => openWarband("result", (r.rewards.find(x => x.kind === "unit") || {}).name);
+    const mw = $("#result .manage-warband");
+    const firstBurn = r.rewards.find(x => x.burn)?.burn;
+    mw.onclick = () => openWarband("result", (r.rewards.find(x => x.kind === "unit") || {}).name, firstBurn?.id || null);
+    mw.classList.toggle("attention", !!firstBurn || r.rewards.some(x => x.kind === "unit"));
     syncLineup();
     const next = $("#result .next");
     const canNext = r.win && !r.endless && lastStage < 9;

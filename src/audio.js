@@ -3,6 +3,46 @@
   "use strict";
   const BC = window.BC;
   const TRACKS = { menu: "assets/music/bc_menu_music.mp3", battle: "assets/music/bc_battle_music.mp3" };
+  const UNIT_VOICES = {
+    "Baron": ["assets/voice/baron-owe.mp3", "assets/voice/baron-tax-season.mp3"],
+    "Battle Mage": ["assets/voice/battle_mage-explodes.mp3", "assets/voice/battle_mage-four-bolts.mp3"],
+    "Beast Berserker": ["assets/voice/beast_berserker-claw-first.mp3", "assets/voice/beast_berserker-tax-this.mp3"],
+    "Bloodthirsty Warlord": ["assets/voice/bloodthirsty_warlord-collecting-heads.mp3", "assets/voice/bloodthirsty_warlord-heavier.mp3"],
+    "Fire Spiritmaster": ["assets/voice/fire_spiritmaster-dirts-angry.mp3", "assets/voice/fire_spiritmaster-kept-the-fire.mp3"],
+    "Frenzied Alchemist": ["assets/voice/frenzied_alchemist-just-drink.mp3", "assets/voice/frenzied_alchemist-mostly-blood.mp3"],
+    "Golden Archer": ["assets/voice/golden_archer-blinking.mp3", "assets/voice/golden_archer-good-eye.mp3"],
+    "Golden Beffalo": ["assets/voice/golden_beffalo-counting-house.mp3", "assets/voice/golden_beffalo-horns-first.mp3"],
+    "Golden Totemist": ["assets/voice/golden_totemist-one-coin.mp3", "assets/voice/golden_totemist_pay-the-toll.mp3"],
+    "Goldweb Spider": ["assets/voice/goldweb_spider-meat.mp3", "assets/voice/goldweb_spider-receipt.mp3"],
+    "Guardian of the Grove": ["assets/voice/guardian_of_the_grove-bloom.mp3", "assets/voice/guardian_of_the_grove-roots-drink-deep.mp3"],
+    "Guardian Spirit": ["assets/voice/guardian_spirit-behind-the-wall.mp3", "assets/voice/guardian_spirit-cold-tonight.mp3"],
+    "Healing Shaman": ["assets/voice/healing_shaman-feather-and-thread.mp3", "assets/voice/healing_shaman-hold-together.mp3"],
+    "Illusion Weaver": ["assets/voice/illusion_weaver-two-decoys.mp3", "assets/voice/illusion_weaver-which-one.mp3"],
+    "Mine Spirit": ["assets/voice/mine_spirit-digging.mp3", "assets/voice/mine_spirit-loose-change.mp3"],
+    "Mystic Engineer": ["assets/voice/mystic_engineer-own-chains.mp3", "assets/voice/mystic_engineer-turrets-up.mp3"],
+    "Pledge Warbeast": ["assets/voice/pledge_warbeast-coins.mp3", "assets/voice/pledge_warbeast-shiny.mp3"],
+    "Resource Warlock": ["assets/voice/resource_warlock-compound.mp3", "assets/voice/resource_warlock-vault.mp3"],
+    "Ritualist": ["assets/voice/ritualist-extra-veins.mp3", "assets/voice/ritualist-my-blood.mp3"],
+    "Serpent Charmer": ["assets/voice/serpent_charmer-brewing.mp3", "assets/voice/serpent_charmer-only-bites.mp3"],
+    "Shadowstalker": ["assets/voice/shadowstalker-candle.mp3", "assets/voice/shadowstalker-tally.mp3"],
+    "Skytalon Raider": ["assets/voice/skytalon_raider-backline.mp3", "assets/voice/skytalon_raider-wings.mp3"],
+    "Spirit Guardian": ["assets/voice/spirit_guardian-back-from-river.mp3", "assets/voice/spirit_guardian-your-grave.mp3"],
+    "Spirit Slowclaw": ["assets/voice/spirit_slowclaw-river-time.mp3", "assets/voice/spirit_slowclaw-rushing.mp3"],
+    "Thunderhoof Juggernaut": ["assets/voice/thunderhoof_juggernaut-into-the-dirt.mp3", "assets/voice/thunderhoof_juggernaut-wagons.mp3"],
+    "Totem Insurer": ["assets/voice/totem_insurer-die-for-free.mp3", "assets/voice/totem_insurer-refundable.mp3"],
+    "Totem Shieldbearer": ["assets/voice/totem_shieldbearer-gate-stands.mp3", "assets/voice/totem_shieldbearer-hit-the-shield.mp3"],
+    "Trade Pact Alpha": ["assets/voice/trade_pact_alpha-blood-pact.mp3", "assets/voice/trade_pact_alpha-on-sale.mp3"],
+    "Warbeast Drummer": ["assets/voice/warbeast_drummer-one-two-crush.mp3", "assets/voice/warbeast_drummer-thighbone.mp3"],
+    "Warden of the Wild": ["assets/voice/warden_of_the_wild-into-the-cage.mp3", "assets/voice/warden_of_the_wild-kept-the-keys.mp3"],
+  };
+  const lastVoiceIdx = new Map();
+  let activeVoice = null;
+  function stopVoice() {
+    if (!activeVoice) return;
+    activeVoice.pause();
+    activeVoice.currentTime = 0;
+    activeVoice = null;
+  }
   const CROSSFADE = 1.4, MIX_FADE = 0.18;
   const tracks = new Map(), ramps = new WeakMap();
   let ctx = null, buses = null, unlocked = false, away = false, resuming = false;
@@ -156,6 +196,7 @@
   function visibility() {
     if (hidden()) {
       // Background timers can freeze: silence and stop immediately, without a timer.
+      stopVoice();
       sync();
       if (ctx && ctx.state !== "closed") ctx.suspend().catch(() => {});
     } else if (unlocked) wake();
@@ -171,7 +212,7 @@
     output: name => buses?.[name],
     sync,
     setScene(id) {
-      if (scene !== id) BC.cancelNarration();
+      if (scene !== id) { BC.cancelNarration(); stopVoice(); }
       scene = id;
       musicCue = false;
       wanted = id === "battle" ? "battle" : ["menu", "campaign", "warband", "result"].includes(id) ? "menu" : null;
@@ -187,7 +228,21 @@
       wanted = value ? "menu" : null;
       sync();
     },
-    setPaused(value) { paused = value; mix(0.35); },
+    setPaused(value) { paused = value; if (value) stopVoice(); mix(0.35); },
     duckNarration(value) { speaking = value; mix(value ? 0.2 : 0.7); },
+    playUnitVoice(name) {
+      const clips = UNIT_VOICES[name];
+      const s = settings();
+      if (!clips || !audible() || s.effectsVolume <= 0) return;
+      const prev = lastVoiceIdx.get(name);
+      const idx = prev === undefined ? Math.floor(Math.random() * clips.length) : (prev + 1) % clips.length;
+      lastVoiceIdx.set(name, idx);
+      stopVoice();
+      const el = new Audio(clips[idx]);
+      el.volume = Math.min(1, s.masterVolume * s.effectsVolume);
+      activeVoice = el;
+      el.addEventListener("ended", () => { if (activeVoice === el) activeVoice = null; });
+      el.play().catch(() => {});
+    },
   };
 })();

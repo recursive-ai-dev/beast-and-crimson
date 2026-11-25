@@ -64,6 +64,11 @@
   </content_rating>
 
   <releases>
+    <release version="0.10.6" date="2026-11-25">
+      <description>
+        <p>Added 60 unit deployment voice clips, clearer Runic Burn reward equipping UX, and fixed the briefing title border overlap.</p>
+      </description>
+    </release>
     <release version="0.10.5" date="2026-11-24">
       <description>
         <p>Added enemy opening vanguard threat and progressive per-stage pace scaling across Chapters 1–10.</p>

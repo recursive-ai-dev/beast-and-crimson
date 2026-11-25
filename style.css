@@ -254,10 +254,10 @@ img.px { image-rendering: pixelated; }
 .brief .parchment { max-width: min(600px, 92vw); max-height: calc(100% - 16px); font-style: normal; padding: 0; overflow: hidden; overflow-y: auto; }
 .brief .parchment > :not(.brief-art) { margin-left: 16px; margin-right: 16px; }
 .brief .brief-art:not(.has-art) { display: none; }
-.brief .brief-art { height: clamp(90px, 22vh, 170px); background: var(--art) center / cover no-repeat; image-rendering: pixelated; border-bottom: 3px double #6b4a1f; position: relative; }
+.brief .brief-art { height: clamp(90px, 22vh, 170px); background: var(--art) center / cover no-repeat; image-rendering: pixelated; position: relative; }
 .brief .brief-art::after { content: ""; position: absolute; inset: 0; background: linear-gradient(transparent 50%, rgba(217,195,147,.95)); }
 .brief h3 { font-family: var(--gothic); margin: 10px 0 6px; font-size: clamp(20px, 3vw, 28px); color: #5a0000; }
-.brief .brief-art.has-art + h3 { margin-top: -26px; position: relative; }
+.brief .brief-art.has-art + h3 { margin-top: -18px; position: relative; z-index: 1; }
 .brief h3:first-child, .brief .brief-art:not(.has-art) + h3 { margin-top: 14px; }
 .brief .lore { font-style: italic; }
 .brief .foes { display: flex; gap: 6px; flex-wrap: wrap; margin: 8px 0; }
@@ -279,6 +279,12 @@ img.px { image-rendering: pixelated; }
 .wb-unit.in-line::after { content: "⚔"; position: absolute; top: 0; right: 3px; color: var(--gold-hi); font-size: 13px; }
 .wb-unit.locked { opacity: .35; filter: grayscale(1) brightness(.4); cursor: not-allowed; }
 .wb-unit .burn-dot { position: absolute; top: 3px; left: 3px; width: 8px; height: 8px; border-radius: 50%; box-shadow: 0 0 4px currentColor; }
+.lineup-member { position: relative; }
+.lineup-member .burn-dot { position: absolute; top: 4px; right: 4px; width: 7px; height: 7px; border-radius: 50%; box-shadow: 0 0 4px currentColor; }
+.lineup-member .burn-dot.empty { background: transparent; border: 1px dashed #6b583d; box-shadow: none; }
+.burn.focus-burn { border-color: #ffe187; box-shadow: 0 0 12px rgba(255, 225, 135, 0.35); }
+.stone-btn.attention { border-color: #e6bf67; box-shadow: 0 0 10px rgba(230, 191, 103, 0.28); }
+.btn-pip { display: inline-block; margin-left: 6px; padding: 1px 5px; border-radius: 999px; background: #e6bf67; color: #1b1208; font: 700 10px/1.2 var(--heading); vertical-align: middle; }
 .wb-display { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; }
 .wb-display canvas { width: min(26vw, 220px); height: auto; position: relative; z-index: 2; }
 .pedestal { position: absolute; bottom: 30%; width: 70%; height: 22%; border-radius: 50%; }
